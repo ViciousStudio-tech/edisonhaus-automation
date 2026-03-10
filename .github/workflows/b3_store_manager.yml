@@ -1,0 +1,34 @@
+name: B3 Store Manager
+
+on:
+  schedule:
+    - cron: '0 8 * * 2,5'  # Tue & Fri 8am UTC (after product finder)
+  workflow_dispatch:
+
+jobs:
+  list-products:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install anthropic requests
+      - name: Restore DB
+        uses: actions/cache@v4
+        with:
+          path: dropship.db
+          key: dropship-db-latest
+          restore-keys: dropship-db-
+      - name: List Products to Shopify
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SHOPIFY_STORE: "fgtyz6-bj.myshopify.com"
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          LISTINGS_PER_RUN: "10"
+        run: python b3_store_manager.py
+      - name: Save DB
+        uses: actions/cache/save@v4
+        with:
+          path: dropship.db
+          key: dropship-db-${{ github.run_id }}
