@@ -1,0 +1,41 @@
+{
+  "generated_at": "2026-03-11T22:47:42.987085",
+  "overall_status": "warning",
+  "errors": [],
+  "warnings": [
+    "No products listed on Shopify yet"
+  ],
+  "modules": {
+    "heartbeats": {
+      "product_finder": {
+        "status": "ok",
+        "last_run": "2026-03-11T22:45:59.532821",
+        "age_hours": 0.0,
+        "details": "success"
+      },
+      "store_manager": {
+        "status": "ok",
+        "last_run": "2026-03-11T15:02:30.732312",
+        "age_hours": 7.8,
+        "details": "success"
+      },
+      "order_fulfiller": {
+        "status": "ok",
+        "last_run": "2026-03-11T20:39:51.123114",
+        "age_hours": 2.1,
+        "details": "success"
+      }
+    },
+    "shopify": {
+      "status": "ok",
+      "product_count": 0,
+      "order_count": 0
+    },
+    "database": {
+      "status": "ok",
+      "total": 16,
+      "pending": 16,
+      "listed": 0
+    }
+  }
+}
