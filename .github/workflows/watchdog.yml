@@ -1,0 +1,37 @@
+name: Watchdog Monitor
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'  # Every 30 minutes
+  workflow_dispatch:
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install requests
+
+      - name: Run Watchdog
+        env:
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GMAIL_TO: ${{ secrets.GMAIL_TO }}
+          DB_PATH: "data/dropship.db"
+        run: python watchdog.py
+
+      - name: Commit dashboard JSON
+        run: |
+          git config user.name "VibeFinds Watchdog"
+          git config user.email "bot@vibefinds.store"
+          git add -f data/dashboard.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "Watchdog run $(date +%Y-%m-%dT%H:%M) [skip ci]"
+          git push origin main || true

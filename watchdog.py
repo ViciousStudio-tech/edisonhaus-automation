@@ -1,0 +1,183 @@
+"""
+VibeFinds Watchdog — Self-monitoring & alerting system
+Checks all B2/B3 components, sends alerts, generates dashboard JSON.
+Runs every 30 minutes via GitHub Actions.
+"""
+
+import os, json, sqlite3, logging, smtplib, requests
+from datetime import datetime, timedelta
+from pathlib import Path
+from email.mime.text import MIMEText
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger(__name__)
+
+SHOPIFY_STORE        = os.environ.get("SHOPIFY_STORE", "fgtyz6-bj.myshopify.com")
+SHOPIFY_ACCESS_TOKEN = os.environ.get("SHOPIFY_ACCESS_TOKEN", "")
+GMAIL_SENDER         = os.environ.get("GMAIL_SENDER", "")
+GMAIL_APP_PASSWORD   = os.environ.get("GMAIL_APP_PASSWORD", "")
+GMAIL_TO             = os.environ.get("GMAIL_TO", GMAIL_SENDER)
+DB_PATH              = os.environ.get("DB_PATH", "data/dropship.db")
+
+SHOPIFY_HEADERS = {
+    "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+    "Content-Type": "application/json"
+}
+SHOPIFY_BASE = f"https://{SHOPIFY_STORE}/admin/api/2024-10"
+
+HEARTBEAT_FILES = {
+    "product_finder":  "b3_product_heartbeat.json",
+    "store_manager":   "b3_store_heartbeat.json",
+    "order_fulfiller": "b3_fulfillment_heartbeat.json",
+}
+
+STALE_THRESHOLDS = {
+    "product_finder":  timedelta(days=4),
+    "store_manager":   timedelta(days=4),
+    "order_fulfiller": timedelta(hours=6),
+}
+
+
+def check_heartbeats() -> dict:
+    results = {}
+    now = datetime.now()
+    for name, filepath in HEARTBEAT_FILES.items():
+        p = Path(filepath)
+        if not p.exists():
+            results[name] = {"status": "missing", "last_run": None, "details": "heartbeat file not found"}
+            continue
+        try:
+            data = json.loads(p.read_text())
+            last_run = datetime.fromisoformat(data.get("last_run", "2000-01-01"))
+            age = now - last_run
+            threshold = STALE_THRESHOLDS.get(name, timedelta(days=7))
+            status_from_hb = data.get("status", "unknown")
+            if "error" in status_from_hb:
+                status = "error"
+            elif age > threshold:
+                status = "stale"
+            else:
+                status = "ok"
+            results[name] = {
+                "status": status,
+                "last_run": data.get("last_run"),
+                "age_hours": round(age.total_seconds() / 3600, 1),
+                "details": status_from_hb
+            }
+        except Exception as e:
+            results[name] = {"status": "error", "last_run": None, "details": str(e)}
+    return results
+
+
+def check_shopify() -> dict:
+    if not SHOPIFY_ACCESS_TOKEN:
+        return {"status": "no_token", "product_count": 0, "order_count": 0}
+    try:
+        p_resp = requests.get(f"{SHOPIFY_BASE}/products/count.json", headers=SHOPIFY_HEADERS, timeout=10)
+        o_resp = requests.get(f"{SHOPIFY_BASE}/orders/count.json?financial_status=paid", headers=SHOPIFY_HEADERS, timeout=10)
+        product_count = p_resp.json().get("count", 0) if p_resp.ok else -1
+        order_count   = o_resp.json().get("count", 0) if o_resp.ok else -1
+        return {"status": "ok", "product_count": product_count, "order_count": order_count}
+    except Exception as e:
+        return {"status": "error", "product_count": -1, "order_count": -1, "error": str(e)}
+
+
+def check_db() -> dict:
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        total    = conn.execute("SELECT COUNT(*) FROM products").fetchone()[0]
+        pending  = conn.execute("SELECT COUNT(*) FROM products WHERE status='pending'").fetchone()[0]
+        listed   = conn.execute("SELECT COUNT(*) FROM products WHERE status='listed'").fetchone()[0]
+        conn.close()
+        return {"status": "ok", "total": total, "pending": pending, "listed": listed}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+def send_alert(subject: str, body: str):
+    if not GMAIL_SENDER or not GMAIL_APP_PASSWORD:
+        log.warning("No Gmail credentials — skipping alert email")
+        return
+    try:
+        msg = MIMEText(body)
+        msg["Subject"] = f"[VibeFinds Alert] {subject}"
+        msg["From"]    = GMAIL_SENDER
+        msg["To"]      = GMAIL_TO
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(GMAIL_SENDER, GMAIL_APP_PASSWORD)
+            smtp.send_message(msg)
+        log.info(f"Alert sent: {subject}")
+    except Exception as e:
+        log.error(f"Failed to send alert: {e}")
+
+
+def write_dashboard(report: dict):
+    Path("data").mkdir(exist_ok=True)
+    Path("data/dashboard.json").write_text(json.dumps(report, indent=2))
+    log.info("Dashboard JSON written to data/dashboard.json")
+
+
+def main():
+    log.info("=" * 60)
+    log.info("VibeFinds Watchdog")
+    log.info("=" * 60)
+
+    heartbeats = check_heartbeats()
+    shopify    = check_shopify()
+    db         = check_db()
+
+    errors = []
+    warnings = []
+
+    for name, hb in heartbeats.items():
+        if hb["status"] == "error":
+            errors.append(f"{name}: {hb['details']}")
+        elif hb["status"] in ("stale", "missing"):
+            warnings.append(f"{name} is {hb['status']} (last run: {hb.get('last_run', 'never')})")
+
+    if shopify["status"] == "error":
+        errors.append(f"Shopify API error: {shopify.get('error')}")
+
+    if db["status"] == "error":
+        errors.append(f"DB error: {db.get('error')}")
+    elif db.get("listed", 0) == 0:
+        warnings.append("No products listed on Shopify yet")
+
+    # Send alerts
+    if errors:
+        send_alert(
+            "ERRORS DETECTED",
+            "The following errors were detected:\n\n" + "\n".join(f"- {e}" for e in errors)
+        )
+
+    if warnings and not errors:
+        # Only send warning email if no hard errors (avoid double emails)
+        send_alert(
+            "Warnings",
+            "The following warnings were detected:\n\n" + "\n".join(f"- {w}" for w in warnings)
+        )
+
+    overall = "error" if errors else ("warning" if warnings else "ok")
+
+    report = {
+        "generated_at":  datetime.now().isoformat(),
+        "overall_status": overall,
+        "errors":   errors,
+        "warnings": warnings,
+        "modules": {
+            "heartbeats": heartbeats,
+            "shopify":    shopify,
+            "database":   db,
+        }
+    }
+
+    write_dashboard(report)
+    log.info(f"Watchdog complete. Status: {overall}")
+    if errors:
+        log.error(f"Errors: {errors}")
+    if warnings:
+        log.warning(f"Warnings: {warnings}")
+
+
+if __name__ == "__main__":
+    main()
