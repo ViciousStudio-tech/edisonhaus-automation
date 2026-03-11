@@ -14,8 +14,10 @@ log = logging.getLogger(__name__)
 
 # ── Env ────────────────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
-CJ_EMAIL          = os.environ.get("CJ_EMAIL", "")   # Optional: falls back to mock products if not set
-CJ_PASSWORD       = os.environ.get("CJ_PASSWORD", "") # Optional: sign up free at cjdropshipping.com
+CJ_API_KEY        = os.environ.get("CJ_API_KEY", "")  # Format: CJUserNum@api@xxxx from CJ My Account > Developer
+# Legacy (unused — CJ deprecated email/password auth in 2024)
+CJ_EMAIL          = os.environ.get("CJ_EMAIL", "")
+CJ_PASSWORD       = os.environ.get("CJ_PASSWORD", "")
 PRODUCTS_PER_RUN  = int(os.environ.get("PRODUCTS_PER_RUN", "20"))
 DB_PATH           = os.environ.get("DB_PATH", "data/dropship.db")
 
@@ -36,11 +38,17 @@ NICHES = [
 
 # ── CJDropshipping Auth ────────────────────────────────────────────────────────
 def cj_get_token() -> str | None:
-    """Authenticate with CJDropshipping API. Returns access token or None."""
+    """Authenticate with CJDropshipping API using apiKey. Returns access token or None.
+    Get your apiKey from: https://www.cjdropshipping.com/my.html#/developer
+    Format: CJUserNum@api@xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    """
+    if not CJ_API_KEY:
+        log.warning("CJ_API_KEY not set — using mock data. Get key at cjdropshipping.com > My Account > Developer")
+        return None
     try:
         resp = requests.post(
             f"{CJ_BASE}/authentication/getAccessToken",
-            json={"email": CJ_EMAIL, "password": CJ_PASSWORD},
+            json={"apiKey": CJ_API_KEY},
             timeout=15
         )
         data = resp.json()
