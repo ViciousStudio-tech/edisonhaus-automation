@@ -15,8 +15,9 @@ log = logging.getLogger(__name__)
 # ── Env ────────────────────────────────────────────────────────────────────────
 SHOPIFY_STORE        = os.environ.get("SHOPIFY_STORE", "fgtyz6-bj.myshopify.com")
 SHOPIFY_ACCESS_TOKEN = os.environ["SHOPIFY_ACCESS_TOKEN"]
-CJ_EMAIL             = os.environ.get("CJ_EMAIL", "")
-CJ_PASSWORD          = os.environ.get("CJ_PASSWORD", "")
+CJ_API_KEY           = os.environ.get("CJ_API_KEY", "")
+CJ_EMAIL             = os.environ.get("CJ_EMAIL", "")    # legacy, unused
+CJ_PASSWORD          = os.environ.get("CJ_PASSWORD", "") # legacy, unused
 GMAIL_SENDER         = os.environ.get("GMAIL_SENDER", "")
 GMAIL_APP_PASSWORD   = os.environ.get("GMAIL_APP_PASSWORD", "")
 GMAIL_TO             = os.environ.get("GMAIL_TO", GMAIL_SENDER)
@@ -34,12 +35,12 @@ CJ_BASE      = "https://developers.cjdropshipping.com/api2.0/v1"
 
 # ── CJ Auth ────────────────────────────────────────────────────────────────────
 def cj_get_token() -> str | None:
-    if not CJ_EMAIL or not CJ_PASSWORD:
+    if not CJ_API_KEY:
         return None
     try:
         resp = requests.post(
             f"{CJ_BASE}/authentication/getAccessToken",
-            json={"email": CJ_EMAIL, "password": CJ_PASSWORD},
+            json={"apiKey": CJ_API_KEY},
             timeout=15
         )
         data = resp.json()
