@@ -14,8 +14,8 @@ log = logging.getLogger(__name__)
 
 # ── Env ────────────────────────────────────────────────────────────────────────
 ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"]
-CJ_EMAIL          = os.environ["CJ_EMAIL"]
-CJ_PASSWORD       = os.environ["CJ_PASSWORD"]
+CJ_EMAIL          = os.environ.get("CJ_EMAIL", "")   # Optional: falls back to mock products if not set
+CJ_PASSWORD       = os.environ.get("CJ_PASSWORD", "") # Optional: sign up free at cjdropshipping.com
 PRODUCTS_PER_RUN  = int(os.environ.get("PRODUCTS_PER_RUN", "20"))
 DB_PATH           = os.environ.get("DB_PATH", "data/dropship.db")
 
@@ -103,17 +103,70 @@ def cj_get_product_detail(token: str, product_id: str) -> dict | None:
         log.error(f"CJ product detail error: {e}")
     return None
 
-# ── Mock data (fallback when CJ auth fails) ──────────────────────────────────
+# ── Mock data (fallback when CJ_EMAIL/CJ_PASSWORD not set) ───────────────────
+# Realistic products to allow testing without a CJDropshipping account.
+# Replace with real CJ credentials when ready: add CJ_EMAIL + CJ_PASSWORD secrets.
+MOCK_PRODUCTS_BY_NICHE = {
+    "home decor": [
+        {"n": "Modern Minimalist Ceramic Vase Set (3 Pack)", "p": 12.50},
+        {"n": "Boho Macrame Wall Hanging Handwoven Cotton Tapestry", "p": 8.99},
+        {"n": "Aesthetic Candle Holders Set Gold Geometric Design", "p": 9.80},
+        {"n": "Rattan Wicker Storage Basket with Handles Set of 2", "p": 11.20},
+    ],
+    "led lighting": [
+        {"n": "RGB LED Strip Lights 10M Smart App Control Music Sync", "p": 14.99},
+        {"n": "Aesthetic Moon Lamp 3D Print Night Light 16 Colors USB", "p": 16.50},
+        {"n": "Neon Sign LED Flexible Light Bar Room Decor USB Powered", "p": 22.00},
+        {"n": "Plug-in Fairy String Lights 10M 100 LEDs Warm White Indoor", "p": 6.80},
+    ],
+    "kitchen organizer": [
+        {"n": "Bamboo Drawer Organizer Divider Set 6-Piece Adjustable", "p": 10.20},
+        {"n": "Rotating Spice Rack Organizer 360 Degree Turntable 24-jar", "p": 13.50},
+        {"n": "Magnetic Knife Strip Wall Mount Kitchen Storage Stainless", "p": 9.99},
+        {"n": "Over Sink Dish Drying Rack Stainless Steel Adjustable", "p": 18.75},
+    ],
+    "smart home gadgets": [
+        {"n": "WiFi Smart Plug 16A Energy Monitor Alexa Google Compatible", "p": 8.50},
+        {"n": "Smart Universal IR Remote Hub WiFi App Alexa Control", "p": 12.99},
+        {"n": "Mini Smart Temperature Humidity Sensor Display WiFi Zigbee", "p": 7.20},
+        {"n": "Smart Door Window Sensor Alarm with App Notification Alert", "p": 6.80},
+    ],
+    "wall art": [
+        {"n": "Abstract Canvas Wall Art Nordic Minimalist Botanical Print", "p": 7.50},
+        {"n": "Retro Sunset Mountain Landscape Poster Print Set of 3", "p": 9.99},
+        {"n": "Green Leaf Botanical Prints Modern Boho Gallery Wall Set", "p": 8.20},
+        {"n": "Inspirational Quote Framed Wall Art Motivational Home Decor", "p": 11.00},
+    ],
+    "storage solutions": [
+        {"n": "Clear Stackable Storage Boxes with Lids Set of 6 Acrylic", "p": 14.99},
+        {"n": "Fabric Cube Storage Bins Organizer Foldable Closet Baskets", "p": 19.50},
+        {"n": "Over Door Hanging Organizer 16 Pocket Shoe Rack Bag Clear", "p": 8.80},
+        {"n": "Vacuum Storage Bags Space Saver Compression Bags 12-Pack", "p": 12.20},
+    ],
+}
+
 def _mock_products(keyword: str) -> list:
+    kw = keyword.lower()
+    for niche_key, items in MOCK_PRODUCTS_BY_NICHE.items():
+        if niche_key in kw or any(w in kw for w in niche_key.split()):
+            return [{
+                "pid": f"mock_{niche_key[:6].replace(' ','_')}_{i}",
+                "productNameEn": item["n"],
+                "sellPrice": item["p"],
+                "categoryName": niche_key.title(),
+                "productImage": f"https://placehold.co/600x600/f5f0eb/4a4a4a?text={item['n'][:20].replace(' ', '+')}",
+                "isStock": "YES",
+                "variants": [{"variantSellPrice": item["p"]}]
+            } for i, item in enumerate(items)]
     return [{
-        "pid": f"mock_{keyword[:8].replace(' ','_')}_{i}",
-        "productNameEn": f"Premium {keyword.title()} - Style {chr(65+i)} [{datetime.now().year}]",
-        "sellPrice": round(random.uniform(4.0, 22.0), 2),
+        "pid": f"mock_generic_{i}",
+        "productNameEn": f"Premium {keyword.title()} Home Lifestyle Item {i+1}",
+        "sellPrice": round(9.0 + i * 3.0, 2),
         "categoryName": keyword.title(),
-        "productImage": f"https://via.placeholder.com/500x500?text={keyword.replace(' ', '+')}",
+        "productImage": f"https://placehold.co/600x600/f5f0eb/4a4a4a?text={keyword.replace(' ', '+')}",
         "isStock": "YES",
-        "variants": [{"variantSellPrice": round(random.uniform(4.0, 22.0), 2)}]
-    } for i in range(6)]
+        "variants": [{"variantSellPrice": round(9.0 + i * 3.0, 2)}]
+    } for i in range(4)]
 
 # ── Database ───────────────────────────────────────────────────────────────────
 def init_db() -> sqlite3.Connection:
