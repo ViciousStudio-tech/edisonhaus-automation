@@ -194,7 +194,8 @@ Return ONLY valid JSON (no markdown):
 
 # ── Save to DB ─────────────────────────────────────────────────────────────────
 def save_product(conn, product: dict, ai: dict, niche: dict, cost: float, vid: str) -> bool:
-    sell   = float(ai.get("sell_price", max(cost * 2.5, 14.99)))
+    raw_sell = ai.get("sell_price", max(cost * 2.5, 14.99)) or max(cost * 2.5, 14.99)
+    sell   = float(str(raw_sell).replace("$","").replace(",","").strip())
     margin = round((sell - cost) / max(sell, 0.01) * 100, 1)
     image  = product.get("productImage") or product.get("imageUrl") or ""
     cj_id  = str(product.get("pid") or product.get("productId") or "")
@@ -268,7 +269,7 @@ def main():
 
                 # Get real variant ID and cost from product detail
                 vid, cost = cj_get_variant_id(token, pid)
-                cost = float(cost) if cost else 0.0
+                cost = float(str(cost).replace('$','').replace(',','').strip()) if cost else 0.0
                 time.sleep(0.5)
 
                 if not vid or cost <= 0:
@@ -281,7 +282,8 @@ def main():
                 skip  = ai.get("skip", True)
 
                 title = (product.get("productNameEn") or "")[:60]
-                sell_display = float(ai.get('sell_price', 0) or 0)
+                raw_sp = ai.get('sell_price', 0) or 0
+                sell_display = float(str(raw_sp).replace('$','').replace(',','').strip() or 0)
                 log.info(f"  [{score}/10] {title} | cost=${cost:.2f} sell=${sell_display:.2f} skip={skip}")
 
                 if skip or score < MIN_SCORE:
