@@ -155,7 +155,7 @@ def write_heartbeat(refreshed: int, status: str = "success"):
 
 def main():
     log.info("=" * 60)
-    log.info("B3 AI Optimizer — VibeFinds")
+    log.info("B3 AI Optimizer — EdisonHaus")
     log.info("=" * 60)
 
     try:

@@ -1,5 +1,5 @@
 """
-VibeFinds Watchdog — Self-monitoring & alerting system
+EdisonHaus Watchdog — Self-monitoring & alerting system
 Checks all B2/B3 components, sends alerts, generates dashboard JSON.
 Runs every 30 minutes via GitHub Actions.
 """
@@ -100,7 +100,7 @@ def send_alert(subject: str, body: str):
         return
     try:
         msg = MIMEText(body)
-        msg["Subject"] = f"[VibeFinds Alert] {subject}"
+        msg["Subject"] = f"[EdisonHaus Alert] {subject}"
         msg["From"]    = GMAIL_SENDER
         msg["To"]      = GMAIL_TO
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
@@ -119,7 +119,7 @@ def write_dashboard(report: dict):
 
 def main():
     log.info("=" * 60)
-    log.info("VibeFinds Watchdog")
+    log.info("EdisonHaus Watchdog")
     log.info("=" * 60)
 
     heartbeats = check_heartbeats()

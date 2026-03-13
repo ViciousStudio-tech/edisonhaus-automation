@@ -134,7 +134,7 @@ def place_cj_order(token: str, order: dict, cj_product_id: str) -> str | None:
             "shippingAddress2": addr.get("address2", ""),
             "shippingCustomerName": addr.get("name", ""),
             "shippingPhone": addr.get("phone", "0000000000"),
-            "remark": f"VibeFinds order #{order.get('order_number')}",
+            "remark": f"EdisonHaus order #{order.get('order_number')}",
             "products": [{
                 "vid": cj_product_id,
                 "quantity": 1
@@ -182,7 +182,7 @@ def send_manual_alert(orders_needing_manual: list):
         body += "\nLog in to Shopify + CJDropshipping to fulfill manually."
 
         msg = MIMEText(body)
-        msg["Subject"] = f"ACTION NEEDED: {len(orders_needing_manual)} manual order(s) — VibeFinds"
+        msg["Subject"] = f"ACTION NEEDED: {len(orders_needing_manual)} manual order(s) — EdisonHaus"
         msg["From"] = GMAIL_SENDER
         msg["To"] = GMAIL_TO
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:

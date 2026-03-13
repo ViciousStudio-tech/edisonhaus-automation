@@ -30,8 +30,8 @@ jobs:
 
       - name: Commit dashboard JSON
         run: |
-          git config user.name "VibeFinds Watchdog"
-          git config user.email "bot@vibefinds.store"
+          git config user.name "EdisonHaus Watchdog"
+          git config user.email "bot@edisonhaus.store"
           git add -f data/dashboard.json 2>/dev/null || true
           git diff --staged --quiet || git commit -m "Watchdog run $(date +%Y-%m-%dT%H:%M) [skip ci]"
           git push origin main || true
