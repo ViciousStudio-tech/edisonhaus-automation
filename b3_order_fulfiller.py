@@ -124,7 +124,7 @@ def place_cj_order(token: str, order: dict, cj_product_id: str) -> str | None:
     addr = order.get("shipping_address") or {}
     try:
         payload = {
-            "orderNumber": f"VF-{order.get('order_number', 'UNKNOWN')}",
+            "orderNumber": f"EH-{order.get('order_number', 'UNKNOWN')}",
             "shippingZip": addr.get("zip", ""),
             "shippingCountry": addr.get("country_code", "US"),
             "shippingCountryCode": addr.get("country_code", "US"),
@@ -134,7 +134,7 @@ def place_cj_order(token: str, order: dict, cj_product_id: str) -> str | None:
             "shippingAddress2": addr.get("address2", ""),
             "shippingCustomerName": addr.get("name", ""),
             "shippingPhone": addr.get("phone", "0000000000"),
-            "remark": f"EdisonHaus order #{order.get('order_number')}",
+            "remark": f"EdisonHaus [Pet Home Accessories] order #{order.get('order_number')}",
             "products": [{
                 "vid": cj_product_id,
                 "quantity": 1

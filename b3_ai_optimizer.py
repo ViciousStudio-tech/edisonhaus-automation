@@ -65,13 +65,15 @@ def get_low_performing_products(conn) -> list:
 
 def refresh_product_description(client, product: dict) -> str:
     """Generate a fresh, more compelling product description."""
-    prompt = f"""Rewrite this product description to be more compelling and conversion-focused.
-Use power words, benefits-first language, and a clear call-to-action.
+    prompt = f"""Rewrite this product description for EdisonHaus, a Pet Home Accessories store.
+Use warm, pet-loving language. Focus on how this product improves life for pets and their owners.
+Include benefits-first copy, a clear call-to-action, and keep the Pet Home Accessories brand voice throughout.
 Keep it under 200 words. Format as HTML paragraphs.
 
 Product: {product['title']}
 Current description: {product['description']}
-Niche: {product['niche']}"""
+Niche: {product['niche']}
+Store theme: Pet Home Accessories"""
 
     try:
         msg = client.messages.create(
