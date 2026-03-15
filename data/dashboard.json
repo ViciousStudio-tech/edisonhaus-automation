@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-15T14:53:58.659000",
+  "generated_at": "2026-03-15T15:21:44.894224",
   "overall_status": "error",
   "errors": [
     "product_finder: error: CJ auth failed"
@@ -12,19 +12,19 @@
       "product_finder": {
         "status": "error",
         "last_run": "2026-03-13T22:10:17.443742",
-        "age_hours": 40.7,
+        "age_hours": 41.2,
         "details": "error: CJ auth failed"
       },
       "store_manager": {
         "status": "ok",
         "last_run": "2026-03-13T08:31:01.466983",
-        "age_hours": 54.4,
+        "age_hours": 54.8,
         "details": "success"
       },
       "order_fulfiller": {
         "status": "ok",
         "last_run": "2026-03-15T13:05:18.879777",
-        "age_hours": 1.8,
+        "age_hours": 2.3,
         "details": "success"
       }
     },
