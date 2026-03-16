@@ -1,3 +1,7 @@
+# CLAUDE CODE — RUN THIS WITH:
+# claude --dangerously-skip-permissions
+# Then type: read PRODUCT_PIPELINE_PROMPT.md and execute every instruction in it
+
 # CLAUDE CODE — EDISONHAUS PRODUCT PIPELINE
 # Open this repo in Claude Code and say: "Run the product pipeline prompt"
 
