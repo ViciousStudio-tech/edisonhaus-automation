@@ -288,12 +288,18 @@ def phase2_discover_categories(cj_token):
         messages=[{"role": "user", "content": prompt}],
     )
     raw = msg.content[0].text.strip()
-    # Strip markdown code fences if present
-    if raw.startswith("```"):
-        raw = raw.split("\n", 1)[1] if "\n" in raw else raw[3:]
-        if raw.endswith("```"):
-            raw = raw[:-3]
-        raw = raw.strip()
+    # Robustly strip markdown code fences (```json ... ``` or ``` ... ```)
+    import re as _re
+    raw = _re.sub(r'^```[a-zA-Z]*\s*', '', raw)
+    raw = _re.sub(r'\s*```\s*$', '', raw)
+    raw = raw.strip()
+    # If still empty or Claude returned explanation text, try to find JSON array
+    if not raw.startswith('[') and not raw.startswith('{'):
+        match = _re.search(r'(\[.*\])', raw, _re.DOTALL)
+        if match:
+            raw = match.group(1)
+        else:
+            raise ValueError(f"Claude did not return valid JSON. Response: {raw[:300]}")
 
     category_map = json.loads(raw)
     log.info(f"Claude mapped {len(category_map)} CJ categories to Shopify collections.")
