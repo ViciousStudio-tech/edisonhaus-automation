@@ -233,210 +233,141 @@ def phase1_cj_auth():
 # ---------------------------------------------------------------------------
 
 def phase2_discover_categories(cj_token):
+    """
+    Phase 2: Define EdisonHaus collections and create them in Shopify.
+    Uses keyword-based product search — CJ category API returns empty data.
+    """
     log.info("=== PHASE 2: Discover Categories ===")
 
-    # 2a: Fetch CJ category tree
-    log.info("Fetching CJ category tree...")
-    resp = api_call("GET", f"{CJ_BASE}/product/getCategory", headers=cj_headers(cj_token))
-    if not resp or resp.status_code != 200:
-        log.error(f"Failed to fetch categories: {resp.status_code if resp else 'no response'}")
-        sys.exit(1)
+    category_map = [
+        {"shopify_collection_name": "LED & Ambient Lighting",
+         "shopify_collection_handle": "led-ambient-lighting",
+         "search_keywords": ["LED strip light", "fairy lights", "string lights",
+                             "ambient light", "neon light", "galaxy projector",
+                             "sunset lamp", "smart light strip"],
+         "shopify_collection_id": None},
+        {"shopify_collection_name": "Table & Desk Lamps",
+         "shopify_collection_handle": "table-desk-lamps",
+         "search_keywords": ["table lamp", "desk lamp", "bedside lamp", "reading lamp"],
+         "shopify_collection_id": None},
+        {"shopify_collection_name": "Pendant & Ceiling Lights",
+         "shopify_collection_handle": "pendant-ceiling-lights",
+         "search_keywords": ["pendant light", "chandelier", "ceiling light", "hanging lamp"],
+         "shopify_collection_id": None},
+        {"shopify_collection_name": "Wall Decor",
+         "shopify_collection_handle": "wall-decor",
+         "search_keywords": ["canvas wall art", "wall painting", "wall hanging",
+                             "tapestry wall", "decorative painting"],
+         "shopify_collection_id": None},
+        {"shopify_collection_name": "Cozy Textiles",
+         "shopify_collection_handle": "cozy-textiles",
+         "search_keywords": ["throw pillow cover", "cushion cover", "sofa pillow cover"],
+         "shopify_collection_id": None},
+        {"shopify_collection_name": "Storage & Accents",
+         "shopify_collection_handle": "storage-accents",
+         "search_keywords": ["woven basket", "rattan basket", "candle holder",
+                             "decorative vase", "storage basket"],
+         "shopify_collection_id": None},
+    ]
 
-    cat_data = resp.json()
-    categories = cat_data.get("data", [])
-    log.info(f"Fetched {len(categories)} top-level categories from CJ.")
-
-    # Flatten the tree
-    flat_cats = []
-    def flatten(cats, parent_id=None):
-        for c in cats:
-            flat_cats.append({
-                "id": c.get("categoryId", c.get("id", "")),
-                "name": c.get("categoryName", c.get("name", "")),
-                "parentId": parent_id,
-            })
-            children = c.get("children") or c.get("childList") or []
-            if children:
-                flatten(children, c.get("categoryId", c.get("id", "")))
-    flatten(categories)
-    log.info(f"Flattened to {len(flat_cats)} total categories.")
-
-    # 2b: Call Claude to map categories
-    log.info("Asking Claude to map CJ categories to Shopify collections...")
-    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-
-    prompt = (
-        "You are a merchandising strategist for EdisonHaus, a Shopify "
-        "store selling warm ambient home lighting and home decor. Analyse "
-        "this CJ Dropshipping category list. Return every category that "
-        "contains products for: all lighting types (LED, ambient, pendant, "
-        "ceiling, table, desk, floor, fairy, string, strip, neon, solar, "
-        "smart bulbs), home decor (wall art, canvas, tapestries, vases, "
-        "candle holders, decorative items), cozy textiles (throw pillow "
-        "covers, cushion covers), storage accents (baskets, rattan "
-        "organisers). Return ONLY valid JSON array, no markdown: "
-        '[{"cj_category_id", "cj_category_name", "shopify_collection_name", '
-        '"shopify_collection_handle"}] '
-        "Handle must be lowercase-hyphenated-url-safe. Group related CJ "
-        "sub-categories under one Shopify collection where logical.\n\n"
-        f"Categories:\n{json.dumps(flat_cats)}"
-    )
-
-    msg = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4096,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = msg.content[0].text.strip()
-    # Robustly strip markdown code fences (```json ... ``` or ``` ... ```)
-    import re as _re
-    raw = _re.sub(r'^```[a-zA-Z]*\s*', '', raw)
-    raw = _re.sub(r'\s*```\s*$', '', raw)
-    raw = raw.strip()
-    # If still empty or Claude returned explanation text, try to find JSON array
-    if not raw.startswith('[') and not raw.startswith('{'):
-        match = _re.search(r'(\[.*\])', raw, _re.DOTALL)
-        if match:
-            raw = match.group(1)
-        else:
-            raise ValueError(f"Claude did not return valid JSON. Response: {raw[:300]}")
-
-    category_map = json.loads(raw)
-    log.info(f"Claude mapped {len(category_map)} CJ categories to Shopify collections.")
     stats["categories_mapped"] = len(category_map)
+    log.info(f"Using {len(category_map)} collections.")
 
-    # 2c: Create Shopify collections
-    log.info("Creating/verifying Shopify collections...")
-    seen_handles = {}
+    created = 0
     for entry in category_map:
         handle = entry["shopify_collection_handle"]
-        if handle in seen_handles:
-            entry["shopify_collection_id"] = seen_handles[handle]
-            continue
+        name   = entry["shopify_collection_name"]
+        try:
+            r = shopify_request("GET", f"/custom_collections.json?handle={handle}")
+            cols = r.get("custom_collections", [])
+            if cols:
+                entry["shopify_collection_id"] = cols[0]["id"]
+                log.info(f"  Found: {name} (id={cols[0]['id']})")
+            else:
+                r2 = shopify_request("POST", "/custom_collections.json",
+                    json={"custom_collection": {"title": name, "handle": handle, "published": True}})
+                entry["shopify_collection_id"] = r2["custom_collection"]["id"]
+                created += 1
+                log.info(f"  Created: {name} (id={entry['shopify_collection_id']})")
+        except Exception as e:
+            log.error(f"  Collection {name} failed: {e}")
 
-        # Check if collection exists
-        resp = api_call("GET",
-                        f"{SHOPIFY_API}/custom_collections.json?handle={handle}",
-                        headers=shopify_headers())
-        if resp and resp.status_code == 200:
-            existing = resp.json().get("custom_collections", [])
-            if existing:
-                coll_id = existing[0]["id"]
-                log.info(f"Collection '{handle}' exists (ID: {coll_id})")
-                entry["shopify_collection_id"] = coll_id
-                seen_handles[handle] = coll_id
-                time.sleep(0.3)
-                continue
-
-        # Create new collection
-        payload = {
-            "custom_collection": {
-                "title": entry["shopify_collection_name"],
-                "handle": handle,
-                "published": True,
-            }
-        }
-        resp = api_call("POST", f"{SHOPIFY_API}/custom_collections.json",
-                        headers=shopify_headers(), json=payload)
-        if resp and resp.status_code in (200, 201):
-            coll_id = resp.json()["custom_collection"]["id"]
-            entry["shopify_collection_id"] = coll_id
-            seen_handles[handle] = coll_id
-            stats["collections_created"] += 1
-            log.info(f"Created collection '{handle}' (ID: {coll_id})")
-        else:
-            log.error(f"Failed to create collection '{handle}': {resp.status_code if resp else 'no response'} {resp.text if resp else ''}")
-            entry["shopify_collection_id"] = None
-        time.sleep(0.5)
-
+    stats["collections_created"] = created
     CATEGORY_MAP_PATH.write_text(json.dumps(category_map, indent=2))
-    log.info(f"Category map saved to {CATEGORY_MAP_PATH}")
     write_heartbeat("phase2_complete")
     return category_map
 
 
-# ---------------------------------------------------------------------------
-# PHASE 3 — FETCH PRODUCTS
-# ---------------------------------------------------------------------------
-
 def phase3_fetch_products(cj_token, category_map):
+    """
+    Phase 3: Fetch products from CJ using keyword search per collection.
+    Fetches full product detail for every product found.
+    """
     log.info("=== PHASE 3: Fetch Products from CJ ===")
     all_products = []
     seen_pids = set()
 
     for entry in category_map:
-        cat_id = entry.get("cj_category_id")
-        cat_name = entry.get("cj_category_name", "unknown")
-        coll_id = entry.get("shopify_collection_id")
-        if not cat_id:
-            continue
+        coll_id  = entry.get("shopify_collection_id")
+        coll_name = entry["shopify_collection_name"]
+        keywords  = entry.get("search_keywords", [])
 
-        log.info(f"Fetching products for category: {cat_name} ({cat_id})")
-        page = 1
-        while True:
-            resp = api_call("GET",
-                            f"{CJ_BASE}/product/list",
-                            headers=cj_headers(cj_token),
-                            params={"categoryId": cat_id, "pageNum": page, "pageSize": 50})
-            if not resp or resp.status_code != 200:
-                log.warning(f"Product list failed for cat {cat_id} page {page}")
-                break
+        log.info(f"Fetching products for: {coll_name}")
 
-            data = resp.json()
-            products = data.get("data", {}).get("list", []) if isinstance(data.get("data"), dict) else data.get("data", [])
-            if not products:
-                break
+        for keyword in keywords:
+            page = 1
+            while True:
+                resp = api_call("GET", f"{CJ_BASE}/product/list",
+                    headers=cj_headers(cj_token),
+                    params={"productNameEn": keyword, "pageNum": page, "pageSize": 50})
+                if not resp or resp.status_code != 200:
+                    log.warning(f"  Search failed: {keyword} page {page}")
+                    break
 
-            for p in products:
-                pid = p.get("pid") or p.get("productId")
-                if not pid or pid in seen_pids:
-                    continue
-                seen_pids.add(pid)
+                data = resp.json()
+                products = (data.get("data", {}).get("list", [])
+                           if isinstance(data.get("data"), dict)
+                           else data.get("data", []))
+                if not products:
+                    break
 
-                # Fetch full detail
-                time.sleep(0.5)
-                try:
-                    detail_resp = api_call("GET",
-                                           f"{CJ_BASE}/product/query",
-                                           headers=cj_headers(cj_token),
-                                           params={"pid": pid})
+                for p in products:
+                    pid = str(p.get("pid") or p.get("productId") or "")
+                    if not pid or pid in seen_pids:
+                        continue
+                    seen_pids.add(pid)
+
+                    # Fetch full product detail
+                    time.sleep(0.5)
+                    detail_resp = api_call("GET", f"{CJ_BASE}/product/query",
+                        headers=cj_headers(cj_token),
+                        params={"pid": pid})
                     if not detail_resp or detail_resp.status_code != 200:
-                        log.warning(f"Detail fetch failed for pid {pid}")
-                        stats["errors"].append(f"detail_fetch_failed:{pid}")
+                        log.warning(f"  Detail fetch failed for pid={pid}")
                         continue
-                    detail = detail_resp.json().get("data")
+
+                    detail_data = detail_resp.json()
+                    detail = (detail_data.get("data") or
+                             (detail_data.get("data", {}) if isinstance(detail_data.get("data"), dict) else None))
                     if not detail:
-                        log.warning(f"No detail data for pid {pid}")
                         continue
-                    detail["_pipeline_collection_id"] = coll_id
-                    detail["_pipeline_category_id"] = cat_id
-                    detail["_pipeline_category_name"] = cat_name
-                    detail["_pipeline_collection_handle"] = entry.get("shopify_collection_handle")
+
+                    detail["_shopify_collection_id"] = coll_id
+                    detail["_shopify_collection_handle"] = entry["shopify_collection_handle"]
                     all_products.append(detail)
-                    stats["products_fetched"] += 1
-                    if stats["products_fetched"] % 25 == 0:
-                        log.info(f"  ... fetched {stats['products_fetched']} products so far")
-                except Exception as e:
-                    log.warning(f"Error fetching detail for {pid}: {e}")
-                    stats["errors"].append(f"detail_error:{pid}:{str(e)[:80]}")
 
-            if len(products) < 50:
-                break
-            page += 1
-            time.sleep(0.5)
+                if len(products) < 50:
+                    break
+                page += 1
+                time.sleep(0.3)
 
-    log.info(f"Total products fetched: {stats['products_fetched']}")
+        log.info(f"  Total products so far: {len(all_products)}")
+
+    log.info(f"Phase 3 complete. Total unique products fetched: {len(all_products)}")
+    stats["products_fetched"] = len(all_products)
     write_heartbeat("phase3_complete")
     return all_products
 
-
-# ---------------------------------------------------------------------------
-# PHASE 4 — PRICE CALCULATION (inline in phase 5)
-# ---------------------------------------------------------------------------
-
-# ---------------------------------------------------------------------------
-# PHASE 5 — CREATE/UPDATE SHOPIFY PRODUCTS
-# ---------------------------------------------------------------------------
 
 def phase5_create_or_update(products, db, category_map):
     log.info(f"=== PHASE 5: Create/Update {len(products)} Shopify Products ===")
