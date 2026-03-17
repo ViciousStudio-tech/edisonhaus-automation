@@ -1,7 +1,7 @@
 name: B3 Product Pipeline
 on:
   schedule:
-    - cron: '0 3 * * 1,4'
+    - cron: '0 8 * * 1,4'  # 3am EST (GitHub Actions is UTC-only)
   workflow_dispatch:
 jobs:
   run-pipeline:
