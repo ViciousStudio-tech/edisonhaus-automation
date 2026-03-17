@@ -1,41 +1,39 @@
 {
-  "generated_at": "2026-03-17T14:15:25.688912",
-  "overall_status": "warning",
+  "generated_at": "2026-03-17T15:36:24.826876",
+  "overall_status": "ok",
   "errors": [],
-  "warnings": [
-    "No products listed on Shopify yet"
-  ],
+  "warnings": [],
   "modules": {
     "heartbeats": {
       "product_finder": {
         "status": "ok",
         "last_run": "2026-03-16T17:33:22.490179",
-        "age_hours": 20.7,
+        "age_hours": 22.1,
         "details": "success"
       },
       "store_manager": {
         "status": "ok",
         "last_run": "2026-03-17T08:40:48.711175",
-        "age_hours": 5.6,
+        "age_hours": 6.9,
         "details": "success"
       },
       "order_fulfiller": {
         "status": "ok",
         "last_run": "2026-03-17T13:24:33.724004",
-        "age_hours": 0.8,
+        "age_hours": 2.2,
         "details": "success"
       }
     },
     "shopify": {
       "status": "ok",
-      "product_count": 0,
+      "product_count": 233,
       "order_count": 0
     },
     "database": {
       "status": "ok",
-      "total": 0,
+      "total": 233,
       "pending": 0,
-      "listed": 0
+      "listed": 233
     },
     "theme_drift": {
       "status": "no_anthropic",
