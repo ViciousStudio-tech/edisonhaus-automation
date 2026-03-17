@@ -3,6 +3,21 @@
 
 ---
 
+
+## STANDING RULE — ALL CODE TASKS
+
+Every Claude Code session must be started with:
+```
+claude --dangerously-skip-permissions
+```
+
+Every prompt written for Claude Code must include this at the top:
+```
+Run with --dangerously-skip-permissions. Do not ask for any permissions. Do not stop for confirmation. Execute every step to completion without pausing.
+```
+
+This is non-negotiable. No exceptions.
+
 ## THE BUSINESS
 
 **EdisonHaus** is a Shopify dropshipping store selling warm ambient home lighting and décor.
