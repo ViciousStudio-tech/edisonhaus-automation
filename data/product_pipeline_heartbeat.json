@@ -1,13 +1,13 @@
 {
   "module": "b3_product_pipeline",
-  "last_run": "2026-03-17T14:34:34.833736+00:00",
+  "last_run": "2026-03-17T15:27:38.306680+00:00",
   "phase": "complete",
-  "products_fetched": 0,
-  "products_created": 0,
+  "products_fetched": 233,
+  "products_created": 233,
   "products_updated": 0,
   "products_skipped": 0,
   "status": "partial",
   "errors": [
-    "detail_fail:2603170855391619500"
+    "detail_fail:2028722101456314369"
   ]
 }
