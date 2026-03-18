@@ -139,7 +139,7 @@ def step1_auth():
 def step2_search(tok):
     log.info("── STEP 2: Keyword Search ──")
     MAX_PAGES = 2  # CJ returns thousands; 2 pages (100) per keyword is plenty
-    results = {}  # handle → [pid,...]
+    results = {}  # handle → [{search_item},...]
     seen = set()
     for coll in COLLECTIONS:
         h = coll["handle"]
@@ -158,9 +158,12 @@ def step2_search(tok):
                 if not items: break
                 for p in items:
                     pid = p.get("pid") or p.get("productId")
+                    name = (p.get("productNameEn") or "").lower()
+                    # Filter: product name must contain the full keyword phrase
+                    if kw.lower() not in name: continue
                     if pid and pid not in seen:
                         seen.add(pid)
-                        results[h].append(pid)
+                        results[h].append(p)  # keep full search data
                 log.info(f"  '{kw}' p{page}: {len(items)} results, {len(results[h])} uniq for {h}")
                 if len(items) < 50: break
                 page += 1
@@ -170,17 +173,44 @@ def step2_search(tok):
     heartbeat("search_done")
     return results
 
-# ── Step 3: Fetch product details ────────────────────────────────────────
-def step3_details(tok, pid_map):
+# ── Step 3: Fetch product details (with search-data fallback) ─────────────
+def step3_details(tok, search_map):
+    """Fetch full details via /product/query. If daily limit hit, fall back to search data."""
     log.info("── STEP 3: Fetch Details ──")
     details = {}  # handle → [product,...]
-    total = sum(len(v) for v in pid_map.values())
-    for h, pids in pid_map.items():
+    total = sum(len(v) for v in search_map.values())
+
+    for h, items in search_map.items():
         details[h] = []
-        for pid in pids:
+        for item in items:
+            pid = str(item.get("pid") or item.get("productId",""))
+            if not pid: continue
+
+            # If daily limit hit, use search data directly
             if S.get("_cj_exhausted"):
-                log.warning("  CJ daily limit — skipping remaining details")
-                break
+                name = item.get("productNameEn","")
+                if not name: continue
+                # Parse sellPrice from search (may be "6.10 -- 9.09" or "1.67")
+                sp = str(item.get("sellPrice","0"))
+                cost_str = sp.split("--")[0].strip() if "--" in sp else sp
+                try: cost_val = float(cost_str)
+                except: continue
+                if cost_val <= 0: continue
+                # Build a minimal product from search data
+                fallback = {
+                    "pid": pid,
+                    "productNameEn": name,
+                    "productImage": item.get("productImage",""),
+                    "productWeight": item.get("productWeight", 0),
+                    "productSkuEn": item.get("productSku","CJ"),
+                    "productDescription": item.get("remark",""),
+                    "variants": [{"vid": pid, "variantSellPrice": str(cost_val), "variantNameEn": "Default"}],
+                    "_from_search": True,
+                }
+                details[h].append(fallback)
+                S["fetched"] += 1
+                continue
+
             time.sleep(1.5)
             try:
                 r = _req("GET", f"{CJ_BASE}/product/query", headers=cj_h(tok), params={"pid":pid})
@@ -196,7 +226,9 @@ def step3_details(tok, pid_map):
                 if S["fetched"] % 50 == 0: log.info(f"  {S['fetched']}/{total} details fetched")
             except Exception as e:
                 S["errors"].append(f"detail_err:{pid}:{str(e)[:60]}")
-    log.info(f"Details done: {S['fetched']} fetched")
+
+    from_search = sum(1 for h in details for p in details[h] if p.get("_from_search"))
+    log.info(f"Details done: {S['fetched']} total ({S['fetched']-from_search} from API, {from_search} from search fallback)")
     heartbeat("details_done")
     return details
 
@@ -406,6 +438,69 @@ def verify(db):
             log.info(f"  {c['title']:<35} | {cnt}")
             time.sleep(0.3)
 
+# ── Phase 6: Fill missing descriptions via Anthropic ─────────────────────
+def phase6_fill_descriptions():
+    """For products with no/short description, generate one via Anthropic and PUT body_html only."""
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not anthropic_key:
+        log.info("ANTHROPIC_API_KEY not set, skipping description generation")
+        return
+    log.info("── PHASE 6: Fill Missing Descriptions ──")
+    # Fetch all products with short/missing descriptions
+    missing = []
+    url = f"{SHOPIFY_BASE}/products.json?limit=250&fields=id,title,body_html"
+    while url:
+        r = _req("GET", url, headers=shop_h())
+        if not r or r.status_code != 200: break
+        for p in r.json().get("products", []):
+            html = (p.get("body_html") or "").strip()
+            if len(html) < 50:
+                missing.append({"id": p["id"], "title": p["title"]})
+        link = r.headers.get("Link", "")
+        url = None
+        for part in link.split(","):
+            if 'rel="next"' in part:
+                url = part.split("<")[1].split(">")[0]
+    if not missing:
+        log.info("  All products have descriptions")
+        return
+    log.info(f"  {len(missing)} products need descriptions")
+    updated = 0
+    for i, p in enumerate(missing):
+        try:
+            r = requests.post("https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": anthropic_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                json={"model": "claude-sonnet-4-20250514", "max_tokens": 400,
+                    "system": ("You are a product copywriter for EdisonHaus, a warm ambient home lighting "
+                        "and decor store. Write a compelling product description using only <p> and "
+                        "<ul><li> HTML tags. No headers, no bold, no other tags. 80-120 words. Focus "
+                        "on ambiance, style, and home decor appeal. Do not invent specific measurements "
+                        "or specs. Do not mention other brand names."),
+                    "messages": [{"role": "user", "content": f"Write a product description for: {p['title']}"}]},
+                timeout=30)
+            if r.status_code != 200:
+                log.warning(f"  Anthropic error for {p['id']}: {r.status_code}")
+                time.sleep(1); continue
+            desc = r.json()["content"][0]["text"].strip()
+            if desc.startswith("```"):
+                desc = desc.split("\n", 1)[1] if "\n" in desc else desc[3:]
+                if desc.endswith("```"): desc = desc[:-3]
+                desc = desc.strip()
+            if "<p>" not in desc:
+                log.warning(f"  Bad response for {p['id']}, skipping"); time.sleep(1); continue
+            time.sleep(1)
+            r2 = _req("PUT", f"{SHOPIFY_BASE}/products/{p['id']}.json", headers=shop_h(),
+                json={"product": {"id": p["id"], "body_html": desc}})
+            if r2 and r2.status_code == 200:
+                updated += 1
+                log.info(f"  [{i+1}/{len(missing)}] Updated: {p['title'][:50]}")
+            else:
+                log.warning(f"  Shopify PUT failed for {p['id']}")
+            time.sleep(0.5)
+        except Exception as e:
+            log.error(f"  Desc error {p['id']}: {e}")
+    log.info(f"  Descriptions: {updated}/{len(missing)} updated")
+
 # ── Main ──────────────────────────────────────────────────────────────────
 def main():
     log.info("="*60)
@@ -431,6 +526,7 @@ def main():
         status = "success" if not S["errors"] else "partial"
         heartbeat("complete", status)
         log.info(f"Done: {S['created']} created, {S['updated']} updated, {S['skipped']} skipped, {len(S['errors'])} errors")
+        phase6_fill_descriptions()
         step10_commit()
     except Exception as e:
         log.error(f"FATAL: {e}\n{traceback.format_exc()}")
