@@ -1,13 +1,21 @@
 {
   "module": "b3_product_pipeline",
-  "last_run": "2026-03-17T15:27:38.306680+00:00",
+  "last_run": "2026-03-19T08:37:55.990770+00:00",
   "phase": "complete",
-  "products_fetched": 233,
-  "products_created": 233,
+  "products_fetched": 223,
+  "products_created": 0,
   "products_updated": 0,
   "products_skipped": 0,
   "status": "partial",
   "errors": [
-    "detail_fail:2028722101456314369"
+    "create_fail:2034277887160537089",
+    "create_fail:2603190301551635900",
+    "create_fail:2034509538218135554",
+    "create_fail:2603190358491627700",
+    "create_fail:2603190348241603000",
+    "create_fail:2603190338491600300",
+    "create_fail:2603040845011627700",
+    "create_fail:2603040841541625700",
+    "create_fail:2603040333101616600"
   ]
 }
