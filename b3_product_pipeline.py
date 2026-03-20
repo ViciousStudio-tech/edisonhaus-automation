@@ -501,6 +501,74 @@ def phase6_fill_descriptions():
             log.error(f"  Desc error {p['id']}: {e}")
     log.info(f"  Descriptions: {updated}/{len(missing)} updated")
 
+# ── Phase 7: Clean up CJ product titles via Anthropic ─────────────────────
+def phase7_clean_titles():
+    """For newly created products with messy CJ titles, rewrite them."""
+    import re as _re
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not anthropic_key:
+        log.info("ANTHROPIC_API_KEY not set, skipping title cleanup")
+        return
+    log.info("── PHASE 7: Clean Product Titles ──")
+
+    def _needs_cleaning(title):
+        if not title: return False
+        if _re.match(r'^\d+\s', title): return True
+        words = title.split()
+        if any(len(w)>=3 and w.isupper() and w not in ("LED","USB","RGB","DIY","UV") for w in words[1:]): return True
+        if _re.search(r'(?i)(wabi.?sabi|hemp.?rope|ins style|light.?luxury|niche design|wholesale|pickup only)', title): return True
+        if title.count(',') >= 3: return True
+        if len(title) > 80: return True
+        if _re.search(r'[A-Z]\d{3,}', title): return True
+        return False
+
+    # Fetch recently created products
+    products = []
+    url = f"{SHOPIFY_BASE}/products.json?limit=250&fields=id,title&created_at_min={datetime.now(timezone.utc).strftime('%Y-%m-%d')}T00:00:00Z"
+    while url:
+        r = _req("GET", url, headers=shop_h())
+        if not r or r.status_code != 200: break
+        products.extend(r.json().get("products", []))
+        link = r.headers.get("Link", "")
+        url = None
+        for part in link.split(","):
+            if 'rel="next"' in part:
+                url = part.split("<")[1].split(">")[0]
+
+    dirty = [p for p in products if _needs_cleaning(p.get("title", ""))]
+    if not dirty:
+        log.info("  No titles need cleaning")
+        return
+    log.info(f"  {len(dirty)} titles need cleaning")
+    cleaned = 0
+    for p in dirty:
+        try:
+            r = requests.post("https://api.anthropic.com/v1/messages",
+                headers={"x-api-key": anthropic_key, "anthropic-version": "2023-06-01", "content-type": "application/json"},
+                json={"model": "claude-sonnet-4-20250514", "max_tokens": 30,
+                    "system": ("You are a product naming expert for EdisonHaus, a warm ambient home lighting "
+                        "and decor store. Rewrite the given product title into a clean, natural English "
+                        "retail product name. Rules: max 60 characters, keep the core product type and "
+                        "key feature, natural grammar, title case, no keyword stuffing, no model numbers, "
+                        "no brand names. Return ONLY the new title, nothing else."),
+                    "messages": [{"role": "user", "content": f"Rewrite this product title: {p['title']}"}]},
+                timeout=30)
+            if r.status_code != 200:
+                time.sleep(1); continue
+            new = r.json()["content"][0]["text"].strip().strip('`"\'')
+            time.sleep(1)
+            if len(new) < 10 or len(new) > 65:
+                continue
+            r2 = _req("PUT", f"{SHOPIFY_BASE}/products/{p['id']}.json", headers=shop_h(),
+                json={"product": {"id": p["id"], "title": new}})
+            if r2 and r2.status_code == 200:
+                cleaned += 1
+                log.info(f"  {p['title'][:40]} → {new}")
+            time.sleep(0.5)
+        except Exception as e:
+            log.error(f"  Title clean error {p['id']}: {e}")
+    log.info(f"  Titles cleaned: {cleaned}/{len(dirty)}")
+
 # ── Main ──────────────────────────────────────────────────────────────────
 def main():
     log.info("="*60)
@@ -527,6 +595,7 @@ def main():
         heartbeat("complete", status)
         log.info(f"Done: {S['created']} created, {S['updated']} updated, {S['skipped']} skipped, {len(S['errors'])} errors")
         phase6_fill_descriptions()
+        phase7_clean_titles()
         step10_commit()
     except Exception as e:
         log.error(f"FATAL: {e}\n{traceback.format_exc()}")
