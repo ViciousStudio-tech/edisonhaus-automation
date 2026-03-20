@@ -1,0 +1,31 @@
+name: Promo — Product Feed Generator
+on:
+  schedule:
+    - cron: '0 4 * * *'  # 12am EST daily, after product pipeline
+  workflow_dispatch:
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Generate feeds
+        env:
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+        run: python promo_feed_generator.py
+      - name: Commit feeds
+        run: |
+          git config user.name "EdisonHaus Bot"
+          git config user.email "bot@edisonhaus.store"
+          git add -f feeds/ data/ 2>/dev/null || true
+          git stash
+          git pull --rebase origin main
+          git stash pop || true
+          git add -f feeds/ data/ 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "Feeds: updated $(date +%Y-%m-%d) [skip ci]"
+          git push origin main
