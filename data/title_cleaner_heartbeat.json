@@ -1,0 +1,51 @@
+{
+  "module": "b3_title_cleaner",
+  "last_run": "2026-03-20T14:29:32.480404+00:00",
+  "products_checked": 233,
+  "products_needing_cleanup": 51,
+  "products_updated": 51,
+  "products_failed": 0,
+  "status": "success",
+  "sample_rewrites": [
+    {
+      "old": "13 In 1 Ultra Clear Galaxy Projector Lamp Rotary Space Ball Planetarium Projector Lights",
+      "new": "Galaxy Planetarium Projector with Rotating Space Ball"
+    },
+    {
+      "old": "22 Modern Black Geometric 6-Light Chandelier - Industrial Metal Pendant Light Fixture For Living Room, Dining Room, Or Kitchen Bulb Not Included",
+      "new": "Modern Black Geometric 6-Light Industrial Chandelier"
+    },
+    {
+      "old": "29 Mid-Century Modern 12-Light Starburst Chandelier Gold Sputnik Pendant Light Fixture For Living Room, Dining Room, Or Foyer Bulb Not Included",
+      "new": "Mid-Century Starburst Chandelier in Gold"
+    },
+    {
+      "old": "2Pcs Creative Spiral Three-Color Adjustable LED Desk Lamp, Three-Color Dimming, Soft Lighting, Eye-Friendly And Comfortable, Suitable For Bedroom, Living Room, Bathroom, And Home Decor, USB-Powered",
+      "new": "Spiral Three-Color Adjustable LED Desk Lamp Set"
+    },
+    {
+      "old": "30W LED Ceiling Fan With Light And Remote Control, E27 Lamp, Ceiling Light",
+      "new": "Ceiling Fan with LED Light and Remote Control"
+    },
+    {
+      "old": "Abstract Floral Decorative Painting Core Wholesale Minimalist Watercolor Canvas Print Frameless Wall Art For Sofa Backdrop",
+      "new": "Abstract Floral Watercolor Canvas Wall Art"
+    },
+    {
+      "old": "Artistic Living Room And Dining Room Minimalist Modern Solid-wood U-shaped Chandelier  New Design",
+      "new": "Modern U-Shaped Solid Wood Chandelier"
+    },
+    {
+      "old": "Astronaut Galaxy Projector, 360  Adjustable Star Projector, Starry Night Light Projector With Timer And Remote Control, USB Powered, Astronaut Space Warrior Galaxy Night Light",
+      "new": "Astronaut Galaxy Star Projector with Timer and Remote Control"
+    },
+    {
+      "old": "Astronaut Galaxy Projector, 360 Adjustable Star Projector, Starry Night Light Projector With Timer And Remote Control, USB Powered, Astronaut Space Warrior Galaxy Night Light",
+      "new": "Astronaut Galaxy Projector with Timer and Remote Control"
+    },
+    {
+      "old": "Background Cloth Hanging Cloth Room Decor Instagram-style Landscape Tapestry",
+      "new": "Instagram-Style Landscape Tapestry Wall Hanging"
+    }
+  ]
+}
