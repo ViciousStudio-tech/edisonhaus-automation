@@ -231,7 +231,8 @@ def main():
     if errors:
         send_alert(
             "ERRORS DETECTED",
-            "The following errors were detected:\n\n" + "\n".join(f"- {e}" for e in errors)
+            "The following errors were detected:\n\n" + "\n".join(f"- {e}" for e in errors),
+            urgent=True
         )
 
     if warnings and not errors:
