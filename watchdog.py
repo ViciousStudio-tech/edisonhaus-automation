@@ -94,18 +94,25 @@ def check_db() -> dict:
         return {"status": "error", "error": str(e)}
 
 
-def send_alert(subject: str, body: str):
+def send_alert(subject: str, body: str, urgent: bool = False):
+    """Send an alert email.
+
+    urgent=True  → sends immediately regardless of time (pipeline errors,
+                   order failures, Shopify down, etc.)
+    urgent=False → only sends at 9am EST (14:00 UTC) or 6pm EST (23:00 UTC)
+                   to avoid inbox flooding from routine status updates.
+    """
     if not GMAIL_SENDER or not GMAIL_APP_PASSWORD:
         log.warning("No Gmail credentials — skipping alert email")
         return
-    # Only send emails at 9am EST (14:00 UTC) and 6pm EST (23:00 UTC)
-    # This prevents flooding the inbox — watchdog still runs every 30 min for dashboard
     from datetime import timezone
     current_hour_utc = datetime.now(timezone.utc).hour
     scheduled_hours = {14, 23}  # 9am EST, 6pm EST
-    if current_hour_utc not in scheduled_hours:
-        log.info(f"Email suppressed — current UTC hour {current_hour_utc} not in send window {scheduled_hours}")
+    if not urgent and current_hour_utc not in scheduled_hours:
+        log.info(f"Routine email suppressed — UTC hour {current_hour_utc} not in window {scheduled_hours}")
         return
+    if urgent:
+        subject = f"🚨 URGENT — {subject}"
     try:
         msg = MIMEText(body)
         msg["Subject"] = f"[EdisonHaus Alert] {subject}"
