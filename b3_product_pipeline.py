@@ -106,13 +106,28 @@ def init_db():
     db = sqlite3.connect(str(DB_PATH))
     db.execute("""CREATE TABLE IF NOT EXISTS products (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cj_id TEXT UNIQUE, cj_vid TEXT, title TEXT, shopify_id TEXT,
+        cj_id TEXT UNIQUE, cj_vid TEXT, title TEXT, niche TEXT,
+        collection_id INTEGER, shopify_id TEXT,
         cost_usd REAL, sell_price REAL, profit_margin REAL,
         shopify_collection_id INTEGER, image_url TEXT,
+        ai_description TEXT, ai_tags TEXT, ai_score INTEGER DEFAULT 0,
         status TEXT DEFAULT 'listed',
         last_synced TEXT DEFAULT (datetime('now')),
         created_at TEXT DEFAULT (datetime('now')))""")
     db.commit()
+    # Migrate older DBs that were created without these columns
+    for sql in [
+        "ALTER TABLE products ADD COLUMN niche TEXT",
+        "ALTER TABLE products ADD COLUMN collection_id INTEGER",
+        "ALTER TABLE products ADD COLUMN ai_description TEXT",
+        "ALTER TABLE products ADD COLUMN ai_tags TEXT",
+        "ALTER TABLE products ADD COLUMN ai_score INTEGER DEFAULT 0",
+    ]:
+        try:
+            db.execute(sql)
+            db.commit()
+        except Exception:
+            pass  # column already exists
     return db
 
 # ── Step 1: CJ Auth ──────────────────────────────────────────────────────

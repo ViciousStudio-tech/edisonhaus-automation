@@ -30,6 +30,22 @@ SHOPIFY_BASE   = f"https://{SHOPIFY_STORE}/admin/api/2024-01"
 SHOPIFY_HEADERS = {"X-Shopify-Access-Token": SHOPIFY_TOKEN, "Content-Type": "application/json"}
 
 # ── DB ─────────────────────────────────────────────────────────────────────────
+def ensure_schema(conn):
+    """Add columns that may be missing from older DB schemas."""
+    migrations = [
+        "ALTER TABLE products ADD COLUMN niche TEXT",
+        "ALTER TABLE products ADD COLUMN collection_id INTEGER",
+        "ALTER TABLE products ADD COLUMN ai_description TEXT",
+        "ALTER TABLE products ADD COLUMN ai_tags TEXT",
+        "ALTER TABLE products ADD COLUMN ai_score INTEGER DEFAULT 0",
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+            conn.commit()
+        except Exception:
+            pass  # column already exists
+
 def get_pending(conn) -> list:
     rows = conn.execute("""
         SELECT id, cj_id, cj_vid, title, niche, collection_id,
@@ -138,6 +154,7 @@ def main():
     log.info("=" * 60)
 
     conn = sqlite3.connect(DB_PATH)
+    ensure_schema(conn)
     pending = get_pending(conn)
     log.info(f"Pending products to list: {len(pending)}")
 
