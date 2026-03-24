@@ -1,18 +1,18 @@
 """
-Business 3 — Gmail Watcher + Daily Digest
+Business 3 — Gmail Watcher + Daily Digest (IMAP)
 Two modes:
   --mode=watch   Scans home@edisonhaus.com for urgent emails (every 30 min)
   --mode=digest  Sends combined inbox + Shopify + CJ daily digest (daily 8am EST)
 
-Authentication:
-  Gmail API OAuth2: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN
-  SMTP sending:     GMAIL_SENDER (home@edisonhaus.com) + GMAIL_APP_PASSWORD
+Auth: IMAP with App Password (stdlib imaplib — no extra packages).
 """
 
-import os, sys, json, time, re, logging, argparse, requests, smtplib, builtins, base64
+import os, sys, json, time, re, logging, argparse, requests, smtplib, builtins
+import imaplib, email as emaillib
+from email.mime.text import MIMEText
+from email.header import decode_header
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from email.mime.text import MIMEText
 
 def _no_input(*a, **k): raise RuntimeError("BLOCKED: interactive prompt")
 builtins.input = _no_input
@@ -21,12 +21,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger(__name__)
 
 # ── Env ───────────────────────────────────────────────────────────────────────
-GMAIL_CLIENT_ID     = os.environ.get("GMAIL_CLIENT_ID", "")
-GMAIL_CLIENT_SECRET = os.environ.get("GMAIL_CLIENT_SECRET", "")
-GMAIL_REFRESH_TOKEN = os.environ.get("GMAIL_REFRESH_TOKEN", "")
-GMAIL_SENDER        = os.environ.get("GMAIL_SENDER", "home@edisonhaus.com")
-GMAIL_APP_PASS      = os.environ.get("GMAIL_APP_PASSWORD", "")
-GMAIL_TO            = os.environ.get("GMAIL_TO", "nicholas.jacksondesign@gmail.com")
+GMAIL_SENDER   = os.environ.get("GMAIL_SENDER", "home@edisonhaus.com")
+GMAIL_APP_PASS = os.environ.get("GMAIL_APP_PASSWORD", "")
+GMAIL_TO       = os.environ.get("GMAIL_TO", "nicholas.jacksondesign@gmail.com")
 
 SHOPIFY_STORE  = os.environ.get("SHOPIFY_STORE", "fgtyz6-bj.myshopify.com")
 SHOPIFY_TOKEN  = os.environ.get("SHOPIFY_ACCESS_TOKEN", "")
@@ -48,118 +45,121 @@ URGENT_KEYWORDS = [
     "never arrived", "where is my order", "wismo",
 ]
 
-# ── Gmail OAuth2 ──────────────────────────────────────────────────────────────
-_gmail_access_token: str = ""
 
-def gmail_auth() -> str:
-    """Exchange refresh token for a fresh Gmail API access token."""
-    global _gmail_access_token
-    if _gmail_access_token:
-        return _gmail_access_token
-    if not all([GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN]):
-        log.error("Gmail OAuth2 env vars not set (GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN)")
-        return ""
-    try:
-        r = requests.post("https://oauth2.googleapis.com/token", data={
-            "client_id": GMAIL_CLIENT_ID,
-            "client_secret": GMAIL_CLIENT_SECRET,
-            "refresh_token": GMAIL_REFRESH_TOKEN,
-            "grant_type": "refresh_token",
-        }, timeout=15)
-        r.raise_for_status()
-        _gmail_access_token = r.json()["access_token"]
-        log.info("Gmail OAuth2 token obtained")
-        return _gmail_access_token
-    except Exception as e:
-        log.error(f"Gmail OAuth2 failed: {e}")
-        return ""
-
-
-def gmail_api(method: str, endpoint: str, **kwargs) -> dict | None:
-    """Call Gmail API. Returns parsed JSON or None."""
-    token = gmail_auth()
-    if not token:
+# ══════════════════════════════════════════════════════════════════════════════
+# IMAP helpers
+# ══════════════════════════════════════════════════════════════════════════════
+def imap_connect() -> imaplib.IMAP4_SSL | None:
+    """Connect to Gmail IMAP. Returns connection or None."""
+    if not GMAIL_APP_PASS:
+        log.error("GMAIL_APP_PASSWORD not set — cannot connect to IMAP")
         return None
-    url = f"https://gmail.googleapis.com/gmail/v1/users/me/{endpoint}"
-    headers = {"Authorization": f"Bearer {token}"}
     try:
-        r = requests.request(method, url, headers=headers, timeout=15, **kwargs)
-        if r.status_code == 429:
-            time.sleep(2)
-            r = requests.request(method, url, headers=headers, timeout=15, **kwargs)
-        r.raise_for_status()
-        return r.json() if r.text else {}
+        conn = imaplib.IMAP4_SSL("imap.gmail.com", 993)
+        conn.login(GMAIL_SENDER, GMAIL_APP_PASS)
+        log.info(f"IMAP connected as {GMAIL_SENDER}")
+        return conn
     except Exception as e:
-        log.warning(f"Gmail API {endpoint}: {e}")
+        log.error(f"IMAP login failed: {e}")
         return None
 
 
-def gmail_get_messages(query: str, max_results: int = 100) -> list:
-    """Search Gmail and return list of message metadata."""
-    data = gmail_api("GET", "messages", params={"q": query, "maxResults": max_results})
-    if not data or "messages" not in data:
-        return []
-    messages = []
-    for msg_stub in data["messages"]:
-        msg = gmail_api("GET", f"messages/{msg_stub['id']}", params={"format": "metadata",
-            "metadataHeaders": ["From", "Subject", "Date"]})
-        if msg:
-            messages.append(msg)
-    return messages
-
-
-def gmail_get_body(msg_id: str) -> str:
-    """Fetch plain-text body of a message (first 500 chars)."""
-    msg = gmail_api("GET", f"messages/{msg_id}", params={"format": "full"})
-    if not msg:
+def decode_mime_header(raw: str) -> str:
+    """Decode a MIME-encoded header into plain text."""
+    if not raw:
         return ""
-    payload = msg.get("payload", {})
-    # Try top-level body first, then parts
-    parts = [payload] + (payload.get("parts") or [])
-    for part in parts:
-        if part.get("mimeType") in ("text/plain", "text/html"):
-            b64 = part.get("body", {}).get("data", "")
-            if b64:
-                text = base64.urlsafe_b64decode(b64).decode("utf-8", errors="replace")
-                # Strip HTML tags if needed
-                if part["mimeType"] == "text/html":
+    parts = decode_header(raw)
+    decoded = []
+    for data, charset in parts:
+        if isinstance(data, bytes):
+            decoded.append(data.decode(charset or "utf-8", errors="replace"))
+        else:
+            decoded.append(data)
+    return " ".join(decoded)
+
+
+def extract_body(msg: emaillib.message.Message) -> str:
+    """Extract plain-text body from an email message (first 500 chars)."""
+    if msg.is_multipart():
+        for part in msg.walk():
+            ct = part.get_content_type()
+            if ct == "text/plain":
+                payload = part.get_payload(decode=True)
+                if payload:
+                    return payload.decode("utf-8", errors="replace")[:500]
+            elif ct == "text/html":
+                payload = part.get_payload(decode=True)
+                if payload:
+                    text = payload.decode("utf-8", errors="replace")
                     text = re.sub(r"<[^>]+>", " ", text)
                     text = re.sub(r"\s+", " ", text).strip()
-                return text[:500]
+                    return text[:500]
+    else:
+        payload = msg.get_payload(decode=True)
+        if payload:
+            text = payload.decode("utf-8", errors="replace")
+            if msg.get_content_type() == "text/html":
+                text = re.sub(r"<[^>]+>", " ", text)
+                text = re.sub(r"\s+", " ", text).strip()
+            return text[:500]
     return "(no body)"
 
 
-def gmail_get_header(msg: dict, name: str) -> str:
-    """Extract a header value from a Gmail message metadata response."""
-    for h in msg.get("payload", {}).get("headers", []):
-        if h["name"].lower() == name.lower():
-            return h["value"]
-    return ""
+def imap_fetch_since(conn: imaplib.IMAP4_SSL, since_dt: datetime,
+                     unseen_only: bool = False) -> list[dict]:
+    """Fetch emails since a datetime. Returns list of dicts with id, subject, from, date, body."""
+    conn.select("INBOX", readonly=not unseen_only)  # writable only if we need to mark read
+
+    # IMAP SINCE uses date only (no time), so we filter by date and post-filter
+    date_str = since_dt.strftime("%d-%b-%Y")
+    criteria = f'(UNSEEN SINCE {date_str})' if unseen_only else f'(SINCE {date_str})'
+
+    status, data = conn.search(None, criteria)
+    if status != "OK" or not data[0]:
+        return []
+
+    msg_ids = data[0].split()
+    results = []
+
+    for msg_id in msg_ids:
+        try:
+            status, msg_data = conn.fetch(msg_id, "(RFC822)")
+            if status != "OK" or not msg_data[0]:
+                continue
+            raw = msg_data[0][1]
+            msg = emaillib.message_from_bytes(raw)
+
+            subject = decode_mime_header(msg.get("Subject", ""))
+            sender  = decode_mime_header(msg.get("From", ""))
+            date    = msg.get("Date", "")
+
+            # Parse date and filter by actual timestamp (IMAP SINCE is date-only)
+            body = extract_body(msg)
+
+            results.append({
+                "id": msg_id,
+                "subject": subject,
+                "from": sender,
+                "date": date,
+                "body": body,
+            })
+        except Exception as e:
+            log.warning(f"Error fetching message {msg_id}: {e}")
+
+    return results
 
 
-def gmail_ensure_label(label_name: str) -> str | None:
-    """Get or create a Gmail label by name. Returns label ID."""
-    data = gmail_api("GET", "labels")
-    if data:
-        for label in data.get("labels", []):
-            if label["name"] == label_name:
-                return label["id"]
-    # Create it
-    result = gmail_api("POST", "labels", json={"name": label_name,
-        "labelListVisibility": "labelShow", "messageListVisibility": "show"})
-    if result:
-        log.info(f"Created Gmail label: {label_name}")
-        return result["id"]
-    return None
+def imap_mark_read(conn: imaplib.IMAP4_SSL, msg_id: bytes):
+    """Mark a message as read (SEEN)."""
+    try:
+        conn.store(msg_id, "+FLAGS", "\\Seen")
+    except Exception as e:
+        log.warning(f"Could not mark {msg_id} as read: {e}")
 
 
-def gmail_add_label(msg_id: str, label_id: str):
-    """Add a label to a message."""
-    gmail_api("POST", f"messages/{msg_id}/modify",
-              json={"addLabelIds": [label_id]})
-
-
-# ── SMTP email sending ───────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# SMTP email sending
+# ══════════════════════════════════════════════════════════════════════════════
 def send_email(to: str, subject: str, body: str) -> bool:
     """Send plain-text email via Gmail SMTP."""
     if not GMAIL_SENDER or not GMAIL_APP_PASS:
@@ -184,9 +184,10 @@ def send_email(to: str, subject: str, body: str) -> bool:
         return False
 
 
-# ── Shopify helpers ───────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# Shopify helpers
+# ══════════════════════════════════════════════════════════════════════════════
 def shopify_get(endpoint: str, params: dict = None) -> dict | None:
-    """GET from Shopify Admin API with retry."""
     if not SHOPIFY_TOKEN:
         return None
     url = f"{SHOPIFY_BASE}/{endpoint}"
@@ -205,12 +206,11 @@ def shopify_get(endpoint: str, params: dict = None) -> dict | None:
 
 
 def shopify_put(endpoint: str, payload: dict) -> dict | None:
-    """PUT to Shopify Admin API."""
     if not SHOPIFY_TOKEN:
         return None
-    url = f"{SHOPIFY_BASE}/{endpoint}"
     try:
-        r = requests.put(url, headers=SHOPIFY_HEADERS, json=payload, timeout=15)
+        r = requests.put(f"{SHOPIFY_BASE}/{endpoint}",
+                         headers=SHOPIFY_HEADERS, json=payload, timeout=15)
         r.raise_for_status()
         return r.json()
     except Exception as e:
@@ -218,7 +218,9 @@ def shopify_put(endpoint: str, payload: dict) -> dict | None:
     return None
 
 
-# ── CJ helpers ────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# CJ helpers
+# ══════════════════════════════════════════════════════════════════════════════
 def cj_get_token() -> str | None:
     if not CJ_API_KEY:
         return None
@@ -240,8 +242,7 @@ def cj_get_orders(token: str, status: str) -> list:
         r = requests.get(f"{CJ_BASE}/shopping/order/list",
                          headers={"CJ-Access-Token": token},
                          params={"orderStatus": status, "createDateFrom": since,
-                                 "pageNum": 1, "pageSize": 50},
-                         timeout=15)
+                                 "pageNum": 1, "pageSize": 50}, timeout=15)
         data = r.json()
         if data.get("result") is True:
             return data.get("data", {}).get("list", []) or []
@@ -250,7 +251,9 @@ def cj_get_orders(token: str, status: str) -> list:
     return []
 
 
-# ── Shopify data collection ──────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# Shopify data collection
+# ══════════════════════════════════════════════════════════════════════════════
 def fetch_recent_orders(hours: int = 24) -> list:
     since = (NOW - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%S-00:00")
     data = shopify_get("orders.json", {
@@ -298,107 +301,118 @@ def fetch_cj_problems() -> list:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# MODE 1 — WATCH (every 30 min)
+# Keyword matching
 # ══════════════════════════════════════════════════════════════════════════════
 def is_urgent(subject: str, body: str) -> bool:
-    """Check if email matches urgent keywords."""
     text = (subject + " " + body).lower()
     return any(kw in text for kw in URGENT_KEYWORDS)
 
 
+def categorize_email(subject: str, body: str) -> str:
+    text = (subject + " " + body).lower()
+    if is_urgent(subject, body):
+        return "urgent"
+    if any(kw in text for kw in ["order", "tracking", "shipping", "delivered", "shipment", "fulfillment"]):
+        return "order"
+    if any(kw in text for kw in ["?", "how", "when", "can i", "do you", "help", "question", "inquiry"]):
+        return "question"
+    return "other"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MODE 1 — WATCH (every 30 min)
+# ══════════════════════════════════════════════════════════════════════════════
 def run_watch():
     log.info("── Gmail Watcher — checking for urgent emails ──")
 
-    # Get or create "Auto-Alerted" label
-    label_id = gmail_ensure_label("Auto-Alerted")
+    conn = imap_connect()
+    if not conn:
+        WATCHER_HEARTBEAT.write_text(json.dumps({
+            "module": "b3_gmail_watcher", "last_run": datetime.now().isoformat(),
+            "status": "error: IMAP login failed", "emails_checked": 0, "urgent_alerted": 0,
+        }, indent=2))
+        return
 
-    # Fetch unread emails from last 35 minutes, excluding already-alerted
-    query = "is:unread newer_than:35m -label:Auto-Alerted"
-    messages = gmail_get_messages(query, max_results=50)
-    log.info(f"Found {len(messages)} unread email(s) in last 35 min")
+    since = NOW - timedelta(minutes=35)
+    messages = imap_fetch_since(conn, since, unseen_only=True)
+    log.info(f"Found {len(messages)} unread email(s) since {since.strftime('%H:%M UTC')}")
 
     alerted = 0
     for msg in messages:
-        msg_id = msg["id"]
-        subject = gmail_get_header(msg, "Subject")
-        sender  = gmail_get_header(msg, "From")
-        date    = gmail_get_header(msg, "Date")
-        body    = gmail_get_body(msg_id)
-
-        if not is_urgent(subject, body):
+        if not is_urgent(msg["subject"], msg["body"]):
             continue
 
-        log.info(f"  URGENT: {subject[:60]} — {sender[:40]}")
+        log.info(f"  URGENT: {msg['subject'][:60]} — {msg['from'][:40]}")
 
         alert_body = (
             f"Urgent email received at home@edisonhaus.com\n\n"
-            f"From: {sender}\n"
-            f"Subject: {subject}\n"
-            f"Date: {date}\n\n"
-            f"Preview:\n{body}\n\n"
+            f"From: {msg['from']}\n"
+            f"Subject: {msg['subject']}\n"
+            f"Date: {msg['date']}\n\n"
+            f"Preview:\n{msg['body']}\n\n"
             f"Reply at: https://mail.google.com/mail/u/?authuser=home@edisonhaus.com"
         )
-        alert_subject = f"\U0001f6a8 EdisonHaus URGENT: {subject[:80]} \u2014 {sender[:40]}"
+        alert_subject = f"\U0001f6a8 EdisonHaus URGENT: {msg['subject'][:80]} \u2014 {msg['from'][:40]}"
 
         send_email(GMAIL_TO, alert_subject, alert_body)
-
-        if label_id:
-            gmail_add_label(msg_id, label_id)
-
+        imap_mark_read(conn, msg["id"])
         alerted += 1
 
-    log.info(f"Alerted on {alerted} urgent email(s)")
+    try:
+        conn.logout()
+    except Exception:
+        pass
 
+    log.info(f"Alerted on {alerted} urgent email(s)")
     WATCHER_HEARTBEAT.write_text(json.dumps({
-        "module": "b3_gmail_watcher",
-        "last_run": datetime.now().isoformat(),
-        "status": "success",
-        "emails_checked": len(messages),
-        "urgent_alerted": alerted,
+        "module": "b3_gmail_watcher", "last_run": datetime.now().isoformat(),
+        "status": "success", "emails_checked": len(messages), "urgent_alerted": alerted,
     }, indent=2))
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # MODE 2 — DIGEST (daily)
 # ══════════════════════════════════════════════════════════════════════════════
-def categorize_email(subject: str, body: str) -> str:
-    """Return category emoji+label for an email."""
-    text = (subject + " " + body).lower()
-    if is_urgent(subject, body):
-        return "urgent"
-    order_kw = ["order", "tracking", "shipping", "delivered", "shipment", "fulfillment"]
-    if any(kw in text for kw in order_kw):
-        return "order"
-    question_kw = ["?", "how", "when", "can i", "do you", "help", "question", "inquiry"]
-    if any(kw in text for kw in question_kw):
-        return "question"
-    return "other"
-
-
 def run_digest():
     log.info("── Daily Digest — building report ──")
 
-    # ── Update Shopify customer email (idempotent) ────────────────────────────
+    # Update Shopify customer email (idempotent)
     result = shopify_put("shop.json", {"shop": {"customer_email": "home@edisonhaus.com"}})
     if result:
         log.info(f"Shopify customer_email: {result.get('shop', {}).get('customer_email', '?')}")
 
-    # ── Gmail inbox stats ─────────────────────────────────────────────────────
-    log.info("Fetching inbox (24hr)...")
-    all_msgs = gmail_get_messages("newer_than:1d", max_results=100)
-    unread_msgs = gmail_get_messages("is:unread newer_than:1d", max_results=100)
-    total_inbox = len(all_msgs)
-    total_unread = len(unread_msgs)
-
+    # ── IMAP inbox stats ──────────────────────────────────────────────────────
+    total_inbox = 0
+    total_unread = 0
     categories = {"urgent": [], "question": [], "order": [], "other": []}
-    for msg in all_msgs:
-        subject = gmail_get_header(msg, "Subject")
-        sender  = gmail_get_header(msg, "From")
-        body    = gmail_get_body(msg["id"])
-        cat     = categorize_email(subject, body)
-        categories[cat].append({"subject": subject, "sender": sender})
 
-    log.info(f"  {total_inbox} total, {total_unread} unread")
+    conn = imap_connect()
+    if conn:
+        since_24h = NOW - timedelta(hours=24)
+
+        # All emails last 24h
+        all_msgs = imap_fetch_since(conn, since_24h, unseen_only=False)
+        total_inbox = len(all_msgs)
+
+        for msg in all_msgs:
+            cat = categorize_email(msg["subject"], msg["body"])
+            categories[cat].append({"subject": msg["subject"], "from": msg["from"]})
+
+        # Unread count
+        conn.select("INBOX", readonly=True)
+        date_str = since_24h.strftime("%d-%b-%Y")
+        status, data = conn.search(None, f"(UNSEEN SINCE {date_str})")
+        if status == "OK" and data[0]:
+            total_unread = len(data[0].split())
+
+        try:
+            conn.logout()
+        except Exception:
+            pass
+
+        log.info(f"  Inbox: {total_inbox} total, {total_unread} unread")
+    else:
+        log.warning("  IMAP unavailable — inbox section will be empty")
 
     # ── Shopify data ──────────────────────────────────────────────────────────
     log.info("Fetching Shopify data...")
@@ -412,8 +426,7 @@ def run_digest():
     d14_str = (NOW - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%S-00:00")
     rev_7d       = fetch_revenue(d7_str, now_str)
     rev_prior_7d = fetch_revenue(d14_str, d7_str)
-
-    revenue_24h = sum(float(o.get("total_price", 0)) for o in recent)
+    revenue_24h  = sum(float(o.get("total_price", 0)) for o in recent)
 
     log.info(f"  Orders 24h: {len(recent)}, revenue: ${revenue_24h:.2f}")
     log.info(f"  7d: ${rev_7d:.2f}, prior 7d: ${rev_prior_7d:.2f}")
@@ -427,20 +440,18 @@ def run_digest():
         f"EdisonHaus Daily Digest \u2014 {date_str}",
         "\u2501" * 28,
         "",
-        f"\U0001f4e7 INBOX (last 24hrs)",
+        "\U0001f4e7 INBOX (last 24hrs)",
         f"{total_inbox} total | {total_unread} unread",
     ]
 
-    # Urgent
     if categories["urgent"]:
         lines.append(f"\U0001f6a8 Urgent: {len(categories['urgent'])}")
         for e in categories["urgent"][:5]:
-            lines.append(f"   \u2022 {e['subject'][:60]} \u2014 {e['sender'][:30]}")
+            lines.append(f"   \u2022 {e['subject'][:60]} \u2014 {e['from'][:30]}")
             action_items.append(f"Urgent email: {e['subject'][:50]}")
     else:
         lines.append("\U0001f6a8 Urgent: None")
 
-    # Questions
     if categories["question"]:
         lines.append(f"\u2753 Questions: {len(categories['question'])}")
         for e in categories["question"][:3]:
@@ -448,14 +459,12 @@ def run_digest():
     else:
         lines.append("\u2753 Questions: None")
 
-    # Order related
     lines.append(f"\U0001f4e6 Order related: {len(categories['order'])}")
     lines.append(f"\U0001f4ec Other: {len(categories['other'])}")
     lines.append("")
 
-    # Orders
-    lines.append(f"\U0001f4e6 ORDERS (last 24hrs)")
-    lines.append(f"New orders: {len(recent)} | Revenue: ${revenue_24h:.2f}")
+    lines.append("\U0001f4e6 ORDERS (last 24hrs)")
+    lines.append(f"New: {len(recent)} | Revenue: ${revenue_24h:.2f}")
 
     if unfulfilled:
         lines.append(f"\u26a0\ufe0f Unfulfilled 48hr+: {len(unfulfilled)}")
@@ -477,7 +486,6 @@ def run_digest():
         lines.append("\u26a0\ufe0f CJ Failed: None")
     lines.append("")
 
-    # Revenue
     if rev_prior_7d > 0:
         pct = ((rev_7d - rev_prior_7d) / rev_prior_7d) * 100
         change = f"+{pct:.1f}%" if pct >= 0 else f"{pct:.1f}%"
@@ -485,34 +493,31 @@ def run_digest():
         change = "new revenue (no prior)"
     else:
         change = "\u2014"
-    lines.append(f"\U0001f4b0 REVENUE")
-    lines.append(f"Last 7 days: ${rev_7d:.2f} | Prior 7 days: ${rev_prior_7d:.2f} | {change}")
+    lines.append("\U0001f4b0 REVENUE")
+    lines.append(f"Last 7d: ${rev_7d:.2f} | Prior 7d: ${rev_prior_7d:.2f} | {change}")
     lines.append("")
 
-    # Refunds
     if refunds:
         for o in refunds:
             action_items.append(f"Refund: {o.get('name', '?')} ${o.get('total_price', '0')}")
 
-    # Action needed
-    lines.append(f"\u26a0\ufe0f ACTION NEEDED")
+    lines.append("\u26a0\ufe0f ACTION NEEDED")
     if action_items:
         for item in action_items:
             lines.append(f"   \u2022 {item}")
     else:
-        lines.append(f"Nothing \u2014 all clear \u2705")
+        lines.append("Nothing \u2014 all clear \u2705")
     lines.append("")
 
     lines.extend([
         "\u2501" * 28,
-        "Manage inbox: home@edisonhaus.com",
+        "Manage: home@edisonhaus.com",
         "Shopify: https://admin.shopify.com/store/fgtyz6-bj",
         "\u2501" * 28,
     ])
 
     body = "\n".join(lines)
 
-    # Subject
     tag = f"\u26a0\ufe0f {len(action_items)} items need attention" if action_items else "\u2705 All clear"
     subject = f"EdisonHaus Daily \u2014 {NOW.strftime('%b %d')} | {len(recent)} orders | {tag}"
 
@@ -522,11 +527,8 @@ def run_digest():
     send_email(GMAIL_TO, subject, body)
 
     DIGEST_HEARTBEAT.write_text(json.dumps({
-        "module": "b3_daily_digest",
-        "last_run": datetime.now().isoformat(),
-        "status": "success",
-        "orders_24h": len(recent),
-        "action_items": len(action_items),
+        "module": "b3_daily_digest", "last_run": datetime.now().isoformat(),
+        "status": "success", "orders_24h": len(recent), "action_items": len(action_items),
     }, indent=2))
 
 
@@ -535,8 +537,7 @@ def run_digest():
 # ══════════════════════════════════════════════════════════════════════════════
 def main():
     parser = argparse.ArgumentParser(description="EdisonHaus Gmail Watcher + Digest")
-    parser.add_argument("--mode", choices=["watch", "digest"], required=True,
-                        help="watch = urgent email alerts, digest = daily summary")
+    parser.add_argument("--mode", choices=["watch", "digest"], required=True)
     args = parser.parse_args()
 
     log.info("=" * 60)
@@ -556,12 +557,10 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         log.error(f"Gmail watcher failed: {e}")
-        # Write heartbeat even on failure
         for hb in [WATCHER_HEARTBEAT, DIGEST_HEARTBEAT]:
             try:
                 hb.write_text(json.dumps({
-                    "module": hb.stem,
-                    "last_run": datetime.now().isoformat(),
+                    "module": hb.stem, "last_run": datetime.now().isoformat(),
                     "status": f"error: {e}",
                 }, indent=2))
             except Exception:
