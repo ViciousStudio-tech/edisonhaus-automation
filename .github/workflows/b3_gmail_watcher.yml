@@ -17,12 +17,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - run: pip install requests
+      - run: pip install google-auth google-auth-httplib2 google-api-python-client requests
 
       - name: Watch for urgent emails
         env:
-          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GMAIL_SERVICE_ACCOUNT_JSON: ${{ secrets.GMAIL_SERVICE_ACCOUNT_JSON }}
           GMAIL_TO: ${{ secrets.GMAIL_TO }}
           SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
           CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
