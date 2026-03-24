@@ -1,0 +1,45 @@
+name: B3 Gmail Watcher
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  watch-inbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install google-auth google-auth-oauthlib google-api-python-client requests
+
+      - name: Watch for urgent emails
+        env:
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GMAIL_TO: ${{ secrets.GMAIL_TO }}
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
+        run: python b3_gmail_watcher.py --mode=watch
+
+      - name: Commit heartbeat
+        run: |
+          git config user.name "EdisonHaus Bot"
+          git config user.email "bot@edisonhaus.store"
+          mkdir -p data
+          git add -f data/gmail_watcher_heartbeat.json 2>/dev/null || true
+          git stash
+          git pull --rebase origin main
+          git stash pop || true
+          git add -f data/gmail_watcher_heartbeat.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "B3 gmail watcher $(date +%Y-%m-%d-%H%M) [skip ci]"
+          git push origin main || true

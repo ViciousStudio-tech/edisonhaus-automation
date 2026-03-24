@@ -24,7 +24,7 @@ This is non-negotiable. No exceptions.
 - **Store URL:** https://edisonhaus.com  |  Shopify: fgtyz6-bj.myshopify.com
 - **Status:** Built, password-protected. To go live: Shopify admin → Settings → Subscription → add business address → Preferences → toggle password off.
 - **Plan:** Basic ($1/month until June 11, 2026)
-- **Owner email:** bevicious@vicious.studio  |  Support: support@edisonhaus.com
+- **Owner email:** bevicious@vicious.studio  |  Support: home@edisonhaus.com
 
 Part of a 3-business passive income empire:
 - Business 1: **DwellPicks** — Amazon Associates (LIVE at dwellpicks.com)
