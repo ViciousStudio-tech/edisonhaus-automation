@@ -1671,20 +1671,6 @@
       <ns0:identifier_exists>no</ns0:identifier_exists>
     </item>
     <item>
-      <ns0:id>8162890580042</ns0:id>
-      <ns0:title>Instagram-Style Landscape Tapestry Wall Hanging</ns0:title>
-      <ns0:description />
-      <ns0:link>https://edisonhaus.com/products/background-cloth-hanging-cloth-room-decor-instagram-style-landscape-tapestry</ns0:link>
-      <ns0:image_link>https://cdn.shopify.com/s/files/1/0698/5809/9274/files/de829179-eb5e-4f51-b0db-7ec87de35235.jpg?v=1773760717</ns0:image_link>
-      <ns0:price>14.99 USD</ns0:price>
-      <ns0:availability>in_stock</ns0:availability>
-      <ns0:condition>new</ns0:condition>
-      <ns0:brand>EdisonHaus</ns0:brand>
-      <ns0:product_type>Wall Decor</ns0:product_type>
-      <ns0:google_product_category>Home &amp; Garden &gt; Decor &gt; Wall Decorations</ns0:google_product_category>
-      <ns0:identifier_exists>no</ns0:identifier_exists>
-    </item>
-    <item>
       <ns0:id>8162889302090</ns0:id>
       <ns0:title>Japanese Glass Pendant Light with Brass Accents</ns0:title>
       <ns0:description />
@@ -1699,12 +1685,12 @@
       <ns0:identifier_exists>no</ns0:identifier_exists>
     </item>
     <item>
-      <ns0:id>8162888646730</ns0:id>
-      <ns0:title>Japanese Wabi-Sabi Fabric Chandelier</ns0:title>
+      <ns0:id>8162889236554</ns0:id>
+      <ns0:title>Japanese Wabi-Sabi Dining Table Chandelier</ns0:title>
       <ns0:description />
-      <ns0:link>https://edisonhaus.com/products/japanese-wabi-sabi-style-restaurant-chandelier-with-simple-fabric-design</ns0:link>
-      <ns0:image_link>https://cdn.shopify.com/s/files/1/0698/5809/9274/files/7dce74cf-d8dd-4b07-97c8-2eb7d7b831c2_trans.jpg?v=1773760603</ns0:image_link>
-      <ns0:price>70.99 USD</ns0:price>
+      <ns0:link>https://edisonhaus.com/products/creative-japanese-wabi-sabi-chandelier-for-restaurant-tables-and-bar-counters</ns0:link>
+      <ns0:image_link>https://cdn.shopify.com/s/files/1/0698/5809/9274/files/c2982b42-020e-41ff-8ec4-ef0f6415b29a_trans.jpg?v=1773760640</ns0:image_link>
+      <ns0:price>125.99 USD</ns0:price>
       <ns0:availability>in_stock</ns0:availability>
       <ns0:condition>new</ns0:condition>
       <ns0:brand>EdisonHaus</ns0:brand>
@@ -1713,12 +1699,12 @@
       <ns0:identifier_exists>no</ns0:identifier_exists>
     </item>
     <item>
-      <ns0:id>8162889236554</ns0:id>
-      <ns0:title>Japanese Wabi-Sabi Style Chandelier for Dining Tables</ns0:title>
+      <ns0:id>8162888646730</ns0:id>
+      <ns0:title>Japanese Wabi-Sabi Fabric Chandelier</ns0:title>
       <ns0:description />
-      <ns0:link>https://edisonhaus.com/products/creative-japanese-wabi-sabi-chandelier-for-restaurant-tables-and-bar-counters</ns0:link>
-      <ns0:image_link>https://cdn.shopify.com/s/files/1/0698/5809/9274/files/c2982b42-020e-41ff-8ec4-ef0f6415b29a_trans.jpg?v=1773760640</ns0:image_link>
-      <ns0:price>125.99 USD</ns0:price>
+      <ns0:link>https://edisonhaus.com/products/japanese-wabi-sabi-style-restaurant-chandelier-with-simple-fabric-design</ns0:link>
+      <ns0:image_link>https://cdn.shopify.com/s/files/1/0698/5809/9274/files/7dce74cf-d8dd-4b07-97c8-2eb7d7b831c2_trans.jpg?v=1773760603</ns0:image_link>
+      <ns0:price>70.99 USD</ns0:price>
       <ns0:availability>in_stock</ns0:availability>
       <ns0:condition>new</ns0:condition>
       <ns0:brand>EdisonHaus</ns0:brand>
@@ -1752,6 +1738,20 @@
       <ns0:brand>EdisonHaus</ns0:brand>
       <ns0:product_type>Pendant &amp; Ceiling Lights</ns0:product_type>
       <ns0:google_product_category>Home &amp; Garden &gt; Lighting &gt; Ceiling Lighting</ns0:google_product_category>
+      <ns0:identifier_exists>no</ns0:identifier_exists>
+    </item>
+    <item>
+      <ns0:id>8162890580042</ns0:id>
+      <ns0:title>Landscape Tapestry Wall Hanging</ns0:title>
+      <ns0:description />
+      <ns0:link>https://edisonhaus.com/products/background-cloth-hanging-cloth-room-decor-instagram-style-landscape-tapestry</ns0:link>
+      <ns0:image_link>https://cdn.shopify.com/s/files/1/0698/5809/9274/files/de829179-eb5e-4f51-b0db-7ec87de35235.jpg?v=1773760717</ns0:image_link>
+      <ns0:price>14.99 USD</ns0:price>
+      <ns0:availability>in_stock</ns0:availability>
+      <ns0:condition>new</ns0:condition>
+      <ns0:brand>EdisonHaus</ns0:brand>
+      <ns0:product_type>Wall Decor</ns0:product_type>
+      <ns0:google_product_category>Home &amp; Garden &gt; Decor &gt; Wall Decorations</ns0:google_product_category>
       <ns0:identifier_exists>no</ns0:identifier_exists>
     </item>
     <item>
@@ -1798,7 +1798,7 @@
     </item>
     <item>
       <ns0:id>8162883928138</ns0:id>
-      <ns0:title>Light Luxury Bedroom and Study Chandelier</ns0:title>
+      <ns0:title>Light Luxury Bedroom And Study Chandelier</ns0:title>
       <ns0:description />
       <ns0:link>https://edisonhaus.com/products/light-luxury-chandelier-for-bedroom-and-study-room</ns0:link>
       <ns0:image_link>https://cdn.shopify.com/s/files/1/0698/5809/9274/files/2e502de8-9a1b-4757-95ac-b0e3a7c157db.jpg?v=1773760365</ns0:image_link>
@@ -1812,7 +1812,7 @@
     </item>
     <item>
       <ns0:id>8162882584650</ns0:id>
-      <ns0:title>Light Luxury Cylinder Bedside Chandelier</ns0:title>
+      <ns0:title>Light Luxury Cylindrical Bedside Chandelier</ns0:title>
       <ns0:description />
       <ns0:link>https://edisonhaus.com/products/light-luxury-bedroom-bedside-chandelier-cylinder-style-minimalist</ns0:link>
       <ns0:image_link>https://cdn.shopify.com/s/files/1/0698/5809/9274/files/9c1c06e2-e98e-4c7a-bc9a-fe54c79e00a5_trans.jpg?v=1773760280</ns0:image_link>
@@ -2050,7 +2050,7 @@
     </item>
     <item>
       <ns0:id>8162889629770</ns0:id>
-      <ns0:title>Modern Minimalist Nordic Chandelier with Light Luxury Design</ns0:title>
+      <ns0:title>Modern Nordic Chandelier with Luxe Design</ns0:title>
       <ns0:description />
       <ns0:link>https://edisonhaus.com/products/modern-minimalist-chandelier-with-a-light-luxury-nordic-aestheticcreative-lighting-for-a-sleek-understated-look</ns0:link>
       <ns0:image_link>https://cdn.shopify.com/s/files/1/0698/5809/9274/files/f3db2155-2a7a-408f-bc25-3c43e6303c0b_trans.jpg?v=1773760669</ns0:image_link>
@@ -3100,7 +3100,7 @@
     </item>
     <item>
       <ns0:id>8162885599306</ns0:id>
-      <ns0:title>Wabi Sabi Chandelier for Dining Room and Living Spaces</ns0:title>
+      <ns0:title>Wabi Sabi Chandelier for Dining and Living Rooms</ns0:title>
       <ns0:description />
       <ns0:link>https://edisonhaus.com/products/wabi-sabi-chandelier-for-dining-rooms-lofts-and-modern-barliving-room-spaces</ns0:link>
       <ns0:image_link>https://cdn.shopify.com/s/files/1/0698/5809/9274/files/43e4341f-420d-4097-a8c1-3f2b3da55d75.jpg?v=1773760455</ns0:image_link>
