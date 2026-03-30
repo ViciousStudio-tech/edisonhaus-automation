@@ -6,10 +6,13 @@ def _no_input(*a, **k): raise RuntimeError("BLOCKED")
 builtins.input = _no_input
 
 import os, sys, json, time, csv, io, logging, subprocess, traceback, re
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from xml.etree.ElementTree import Element, SubElement, ElementTree, indent
 import requests
+
+ET.register_namespace('g', 'http://base.google.com/ns/1.0')
 
 # ── Config ────────────────────────────────────────────────────────────────
 SHOPIFY_BASE = "https://fgtyz6-bj.myshopify.com/admin/api/2024-01"
@@ -40,19 +43,23 @@ def strip_html(html):
     return text[:5000]
 
 # ── Google category mapping ───────────────────────────────────────────────
-def google_category(product_type):
+def google_category(product_type, title=""):
     pt = (product_type or "").lower()
-    if any(w in pt for w in ["led", "ambient", "light", "lamp", "lighting"]):
-        if "lamp" in pt: return "Home & Garden > Lighting > Lamps"
-        if "pendant" in pt or "ceiling" in pt: return "Home & Garden > Lighting > Ceiling Lighting"
-        return "Home & Garden > Lighting > Light Bulbs"
-    if any(w in pt for w in ["wall", "decor", "tapestry", "painting"]):
-        return "Home & Garden > Decor > Wall Decorations"
-    if any(w in pt for w in ["textile", "pillow", "cushion"]):
-        return "Home & Garden > Linens & Bedding > Throw Pillows"
-    if any(w in pt for w in ["storage", "basket", "vase", "candle", "accent"]):
-        return "Home & Garden > Decor > Decorative Accents"
-    return "Home & Garden > Lighting > Lamps"
+    t = (title or "").lower()
+    combined = pt + " " + t
+    if any(w in combined for w in ["pendant", "ceiling", "chandelier"]):
+        return "4492"
+    if any(w in combined for w in ["led", "strip", "fairy", "string"]):
+        return "2636"
+    if any(w in combined for w in ["lamp", "lamps"]):
+        return "2706"
+    if any(w in combined for w in ["wall", "tapestry", "canvas", "art"]):
+        return "500044"
+    if any(w in combined for w in ["pillow", "cushion", "textile", "blanket"]):
+        return "505821"
+    if any(w in combined for w in ["storage", "basket", "vase", "candle", "accent"]):
+        return "6869"
+    return "2706"
 
 # ── Step 1: Fetch all products ────────────────────────────────────────────
 def fetch_products():
@@ -92,10 +99,15 @@ def generate_google_feed(products):
         images = p.get("images", [])
         if not images: continue
 
+        title = p.get("title", "")
+        desc = strip_html(p.get("body_html", ""))
+        if len(desc) < 20:
+            desc = f"Shop {title} at EdisonHaus. Premium warm ambient home lighting and decor for cozy living spaces. Free shipping on orders over 50 dollars."
+
         item = SubElement(channel, "item")
         SubElement(item, f"{{{NS}}}id").text = str(p["id"])
-        SubElement(item, f"{{{NS}}}title").text = p.get("title", "")
-        SubElement(item, f"{{{NS}}}description").text = strip_html(p.get("body_html", ""))
+        SubElement(item, f"{{{NS}}}title").text = title
+        SubElement(item, f"{{{NS}}}description").text = desc
         SubElement(item, f"{{{NS}}}link").text = f"{SITE_URL}/products/{handle}"
         SubElement(item, f"{{{NS}}}image_link").text = images[0]["src"]
         if len(images) > 1:
@@ -105,7 +117,7 @@ def generate_google_feed(products):
         SubElement(item, f"{{{NS}}}condition").text = "new"
         SubElement(item, f"{{{NS}}}brand").text = "EdisonHaus"
         SubElement(item, f"{{{NS}}}product_type").text = p.get("product_type", "")
-        SubElement(item, f"{{{NS}}}google_product_category").text = google_category(p.get("product_type", ""))
+        SubElement(item, f"{{{NS}}}google_product_category").text = google_category(p.get("product_type", ""), title)
         SubElement(item, f"{{{NS}}}identifier_exists").text = "no"
         count += 1
 
