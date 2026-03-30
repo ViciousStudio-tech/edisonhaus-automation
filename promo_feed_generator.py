@@ -85,7 +85,6 @@ def generate_google_feed(products):
     NS = "http://base.google.com/ns/1.0"
 
     rss = Element("rss", version="2.0")
-    rss.set("xmlns:g", NS)
     channel = SubElement(rss, "channel")
     SubElement(channel, "title").text = "EdisonHaus"
     SubElement(channel, "link").text = SITE_URL
