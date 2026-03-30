@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""EdisonHaus — Google Merchant Center XML + Meta CSV product feed generator."""
+"""EdisonHaus — Google Merchant Center XML + Meta CSV + Pinterest RSS product feed generator."""
 
 import builtins
 def _no_input(*a, **k): raise RuntimeError("BLOCKED")
@@ -22,6 +22,7 @@ FEEDS_DIR = Path("feeds")
 HB_PATH = Path("data/feed_generator_heartbeat.json")
 GOOGLE_FEED = FEEDS_DIR / "google_feed.xml"
 META_FEED = FEEDS_DIR / "meta_feed.csv"
+PINTEREST_FEED = FEEDS_DIR / "pinterest_feed.xml"
 INDEX_HTML = FEEDS_DIR / "index.html"
 
 FEEDS_DIR.mkdir(parents=True, exist_ok=True)
@@ -134,11 +135,15 @@ def generate_meta_feed(products):
         handle = p.get("handle", "")
         images = p.get("images", [])
         img = images[0]["src"] if images else ""
+        title = p.get("title", "")
         desc = strip_html(p.get("body_html", ""))
+        if len(desc) < 20:
+            desc = f"Shop {title} at EdisonHaus. Premium warm ambient home lighting and decor for cozy living spaces. Free shipping on orders over $50."
+        gpc = google_category(p.get("product_type", ""), title)
         for v in p.get("variants", []):
             rows.append({
                 "id": str(v["id"]),
-                "title": p.get("title", ""),
+                "title": title,
                 "description": desc,
                 "availability": "in stock",
                 "condition": "new",
@@ -147,21 +152,73 @@ def generate_meta_feed(products):
                 "image_link": img,
                 "brand": "EdisonHaus",
                 "product_type": p.get("product_type", ""),
+                "google_product_category": gpc,
             })
 
     with open(META_FEED, "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["id","title","description","availability","condition","price","link","image_link","brand","product_type"])
+        w = csv.DictWriter(f, fieldnames=["id","title","description","availability","condition","price","link","image_link","brand","product_type","google_product_category"])
         w.writeheader()
         w.writerows(rows)
     log.info(f"Meta feed: {len(rows)} rows → {META_FEED}")
     return len(rows)
 
+# ── Step 3b: Pinterest RSS feed ──────────────────────────────────────────
+def generate_pinterest_feed(products):
+    log.info("── Step 3b: Generate Pinterest feed ──")
+    NS = "http://base.google.com/ns/1.0"
+
+    rss = Element("rss", version="2.0")
+    channel = SubElement(rss, "channel")
+    SubElement(channel, "title").text = "EdisonHaus"
+    SubElement(channel, "link").text = SITE_URL
+    SubElement(channel, "description").text = "Warm Ambient Home Lighting & Decor"
+
+    count = 0
+    for p in products:
+        if not p.get("variants"): continue
+        v = p["variants"][0]
+        handle = p.get("handle", "")
+        images = p.get("images", [])
+        if not images: continue
+
+        title = p.get("title", "")
+        desc = strip_html(p.get("body_html", ""))
+        if len(desc) < 20:
+            desc = f"Shop {title} at EdisonHaus. Premium warm ambient home lighting and decor for cozy living spaces. Free shipping on orders over $50."
+
+        gpc = google_category(p.get("product_type", ""), title)
+
+        item = SubElement(channel, "item")
+        SubElement(item, f"{{{NS}}}id").text = str(p["id"])
+        SubElement(item, f"{{{NS}}}title").text = title
+        SubElement(item, f"{{{NS}}}description").text = desc
+        SubElement(item, f"{{{NS}}}link").text = f"{SITE_URL}/products/{handle}"
+        SubElement(item, f"{{{NS}}}image_link").text = images[0]["src"]
+        if len(images) > 1:
+            SubElement(item, f"{{{NS}}}additional_image_link").text = images[1]["src"]
+        SubElement(item, f"{{{NS}}}price").text = f"{v['price']} USD"
+        SubElement(item, f"{{{NS}}}availability").text = "in_stock"
+        SubElement(item, f"{{{NS}}}condition").text = "new"
+        SubElement(item, f"{{{NS}}}brand").text = "EdisonHaus"
+        SubElement(item, f"{{{NS}}}product_type").text = p.get("product_type", "")
+        SubElement(item, f"{{{NS}}}google_product_category").text = gpc
+        SubElement(item, f"{{{NS}}}identifier_exists").text = "no"
+        count += 1
+
+    tree = ElementTree(rss)
+    indent(tree, space="  ")
+    tree.write(str(PINTEREST_FEED), encoding="unicode", xml_declaration=True)
+    log.info(f"Pinterest feed: {count} products → {PINTEREST_FEED}")
+    return count
+
 # ── Step 4: Index HTML ────────────────────────────────────────────────────
 def generate_index():
     log.info("── Step 4: Generate index.html ──")
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    google_url = "https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/google_feed.xml"
-    meta_url = "https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/meta_feed.csv"
+    base = "https://viciousstudio-tech.github.io/edisonhaus-automation/feeds"
+    google_url = f"{base}/google_feed.xml"
+    meta_url = f"{base}/meta_feed.csv"
+    pinterest_url = f"{base}/pinterest_feed.xml"
     INDEX_HTML.write_text(f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>EdisonHaus Product Feeds</title>
@@ -172,6 +229,7 @@ def generate_index():
 <ul>
 <li><a href="{google_url}">Google Merchant Center Feed (XML)</a></li>
 <li><a href="{meta_url}">Meta Product Catalog Feed (CSV)</a></li>
+<li><a href="{pinterest_url}">Pinterest Product Feed (XML)</a></li>
 </ul>
 <p>Store: <a href="https://edisonhaus.com">edisonhaus.com</a></p>
 </body></html>""")
@@ -190,18 +248,21 @@ def main():
 
     g_count = generate_google_feed(products)
     m_count = generate_meta_feed(products)
+    p_count = generate_pinterest_feed(products)
     generate_index()
 
     # Heartbeat
+    base = "https://viciousstudio-tech.github.io/edisonhaus-automation/feeds"
     HB_PATH.write_text(json.dumps({
         "module": "promo_feed_generator",
         "last_run": datetime.now(timezone.utc).isoformat(),
         "products_in_feed": g_count,
-        "google_feed_url": "https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/google_feed.xml",
-        "meta_feed_url": "https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/meta_feed.csv",
+        "google_feed_url": f"{base}/google_feed.xml",
+        "meta_feed_url": f"{base}/meta_feed.csv",
+        "pinterest_feed_url": f"{base}/pinterest_feed.xml",
         "status": "success",
     }, indent=2))
-    log.info(f"Done: {g_count} products in Google feed, {m_count} rows in Meta feed")
+    log.info(f"Done: {g_count} products in Google feed, {m_count} rows in Meta feed, {p_count} products in Pinterest feed")
 
     # Git commit
     try:
