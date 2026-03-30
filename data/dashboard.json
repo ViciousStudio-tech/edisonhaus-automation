@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-30T10:09:04.521801",
+  "generated_at": "2026-03-30T11:31:03.662612",
   "overall_status": "ok",
   "errors": [],
   "warnings": [],
@@ -8,19 +8,19 @@
       "product_finder": {
         "status": "ok",
         "last_run": "2026-03-30T08:18:26.229319",
-        "age_hours": 1.8,
+        "age_hours": 3.2,
         "details": "success"
       },
       "store_manager": {
         "status": "ok",
         "last_run": "2026-03-27T08:41:17.936426",
-        "age_hours": 73.5,
+        "age_hours": 74.8,
         "details": "success"
       },
       "order_fulfiller": {
         "status": "ok",
         "last_run": "2026-03-30T09:20:10.906609",
-        "age_hours": 0.8,
+        "age_hours": 2.2,
         "details": "success"
       }
     },
