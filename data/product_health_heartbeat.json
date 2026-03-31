@@ -1,0 +1,12 @@
+{
+  "module": "product_health",
+  "last_run": "2026-03-31T22:22:36.435610+00:00",
+  "total_checked": 176,
+  "ok": 0,
+  "removed": 0,
+  "price_updated": 0,
+  "errors": 176,
+  "removed_titles": [],
+  "price_updated_titles": [],
+  "status": "partial"
+}
