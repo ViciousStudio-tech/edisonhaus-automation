@@ -1,0 +1,39 @@
+name: B3 Product Health Check
+
+on:
+  schedule:
+    - cron: '0 12 * * *'  # 7am EST / 12pm UTC daily
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install requests
+
+      - name: Run product health check
+        env:
+          SHOPIFY_ACCESS_TOKEN: ${{ secrets.SHOPIFY_ACCESS_TOKEN }}
+          CJ_API_KEY: ${{ secrets.CJ_API_KEY }}
+        run: python b3_product_health.py
+
+      - name: Commit heartbeat
+        run: |
+          git config user.name "EdisonHaus Bot"
+          git config user.email "bot@edisonhaus.store"
+          mkdir -p data
+          git add -f data/product_health_heartbeat.json 2>/dev/null || true
+          git stash
+          git pull --rebase origin main
+          git stash pop || true
+          git add -f data/product_health_heartbeat.json 2>/dev/null || true
+          git diff --staged --quiet || git commit -m "Product health check $(date +%Y-%m-%d) [skip ci]"
+          git push origin main || true

@@ -473,6 +473,32 @@ def run_digest():
         change = "new revenue (no prior)"
     else:
         change = "\u2014"
+    # ── Product health ─────────────────────────────────────────────────────
+    health_hb = Path("data/product_health_heartbeat.json")
+    if health_hb.exists():
+        try:
+            hdata = json.loads(health_hb.read_text())
+            h_total = hdata.get("total_checked", 0)
+            h_removed = hdata.get("removed", 0)
+            h_updated = hdata.get("price_updated", 0)
+            lines.append(f"\U0001f50d PRODUCT HEALTH: {h_total} checked | {h_removed} removed | {h_updated} price updated")
+            if h_removed > 0:
+                titles = hdata.get("removed_titles", [])
+                lines.append(f"\U0001f6a8 REMOVED PRODUCTS:")
+                for t in titles[:10]:
+                    lines.append(f"   \u2022 {t[:60]}")
+                action_items.append(f"{h_removed} products removed by health check")
+            if h_updated > 0:
+                titles = hdata.get("price_updated_titles", [])
+                lines.append(f"\U0001f4b2 PRICE UPDATES:")
+                for t in titles[:10]:
+                    lines.append(f"   \u2022 {t[:80]}")
+        except Exception as e:
+            lines.append(f"\U0001f50d PRODUCT HEALTH: error reading heartbeat ({e})")
+    else:
+        lines.append("\U0001f50d PRODUCT HEALTH: no data yet")
+    lines.append("")
+
     lines.append("\U0001f4b0 REVENUE")
     lines.append(f"Last 7d: ${rev_7d:.2f} | Prior 7d: ${rev_prior_7d:.2f} | {change}")
     lines.append("")
