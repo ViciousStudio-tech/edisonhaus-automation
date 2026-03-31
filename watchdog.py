@@ -4,7 +4,7 @@ Checks all B2/B3 components, sends alerts, generates dashboard JSON.
 Runs every 30 minutes via GitHub Actions.
 """
 
-import os, json, sqlite3, logging, smtplib, requests, re, time
+import os, json, sqlite3, logging, smtplib, requests, re, time, xml.etree.ElementTree as ET
 from datetime import datetime, timedelta
 from pathlib import Path
 from email.mime.text import MIMEText
@@ -194,6 +194,82 @@ def check_theme_drift() -> dict:
     return {"status": "ok", "checked": checked, "removed": removed, "removed_products": removed_list}
 
 
+FEED_URL = "https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/google_feed.xml"
+
+
+def check_feed_health() -> dict:
+    """Fetch the Google Merchant feed and check for common issues."""
+    try:
+        resp = requests.get(FEED_URL, timeout=30)
+        if resp.status_code != 200:
+            return {"status": "error", "total_items": 0, "ns0_count": 0,
+                    "empty_descriptions": 0, "bad_gpc": 0,
+                    "error": f"HTTP {resp.status_code}"}
+
+        raw = resp.text
+        ns0_count = raw.count("ns0:")
+
+        # Parse XML
+        root = ET.fromstring(resp.content)
+        # Handle default namespace
+        ns = {}
+        if root.tag.startswith("{"):
+            default_ns = root.tag.split("}")[0] + "}"
+            ns["atom"] = default_ns.strip("{}")
+        # Find all items (try with and without namespace)
+        items = root.findall(".//item")
+        if not items:
+            # Try with namespace
+            for prefix, uri in [("atom", ns.get("atom", "")), ("g", "http://base.google.com/ns/1.0")]:
+                items = root.findall(f".//{{{uri}}}item") if uri else []
+                if items:
+                    break
+        # Also try channel/item
+        if not items:
+            channel = root.find("channel") or root.find(f"{{{ns.get('atom', '')}}}channel")
+            if channel is not None:
+                items = channel.findall("item")
+
+        total_items = len(items)
+
+        # Check for empty g:description tags
+        empty_descriptions = 0
+        bad_gpc = 0
+        g_ns = "http://base.google.com/ns/1.0"
+
+        for item in items:
+            # Check description
+            desc = item.find(f"{{{g_ns}}}description")
+            if desc is None:
+                desc = item.find("g:description", {"g": g_ns})
+            if desc is not None and (desc.text is None or desc.text.strip() == ""):
+                empty_descriptions += 1
+
+            # Check google_product_category is numeric
+            gpc = item.find(f"{{{g_ns}}}google_product_category")
+            if gpc is None:
+                gpc = item.find("g:google_product_category", {"g": g_ns})
+            if gpc is not None and gpc.text:
+                text = gpc.text.strip()
+                if text and not text.isdigit():
+                    bad_gpc += 1
+
+        has_issues = ns0_count > 0 or empty_descriptions > 0 or bad_gpc > 0
+        status = "error" if has_issues else "ok"
+
+        return {
+            "status": status,
+            "total_items": total_items,
+            "ns0_count": ns0_count,
+            "empty_descriptions": empty_descriptions,
+            "bad_gpc": bad_gpc,
+        }
+
+    except Exception as e:
+        return {"status": "error", "total_items": 0, "ns0_count": 0,
+                "empty_descriptions": 0, "bad_gpc": 0, "error": str(e)}
+
+
 def main():
     log.info("=" * 60)
     log.info("EdisonHaus Watchdog")
@@ -203,9 +279,11 @@ def main():
     theme_drift = check_theme_drift()
     log.info(f"Theme drift check: {theme_drift}")
 
-    heartbeats = check_heartbeats()
-    shopify    = check_shopify()
-    db         = check_db()
+    heartbeats   = check_heartbeats()
+    shopify      = check_shopify()
+    db           = check_db()
+    feed_health  = check_feed_health()
+    log.info(f"Feed health: {feed_health}")
 
     errors = []
     warnings = []
@@ -227,11 +305,37 @@ def main():
     elif db.get("listed", 0) == 0:
         warnings.append("No products listed on Shopify yet")
 
+    if feed_health["status"] == "error":
+        feed_issues = []
+        if feed_health.get("error"):
+            feed_issues.append(feed_health["error"])
+        if feed_health["ns0_count"] > 0:
+            feed_issues.append(f"{feed_health['ns0_count']} ns0: namespace prefixes")
+        if feed_health["empty_descriptions"] > 0:
+            feed_issues.append(f"{feed_health['empty_descriptions']} empty descriptions")
+        if feed_health["bad_gpc"] > 0:
+            feed_issues.append(f"{feed_health['bad_gpc']} non-numeric google_product_category")
+        errors.append(f"Feed health: {'; '.join(feed_issues)}")
+
+    # Build feed health section for emails
+    feed_section = f"\n--- Feed Health ---\nTotal products in feed: {feed_health['total_items']}\n"
+    if feed_health["status"] == "error":
+        if feed_health.get("error"):
+            feed_section += f"🚨 Feed fetch error: {feed_health['error']}\n"
+        if feed_health["ns0_count"] > 0:
+            feed_section += f"🚨 ns0: namespace prefixes found: {feed_health['ns0_count']}\n"
+        if feed_health["empty_descriptions"] > 0:
+            feed_section += f"🚨 Empty g:description tags: {feed_health['empty_descriptions']}\n"
+        if feed_health["bad_gpc"] > 0:
+            feed_section += f"🚨 Non-numeric google_product_category: {feed_health['bad_gpc']}\n"
+    else:
+        feed_section += "All checks passed.\n"
+
     # Send alerts
     if errors:
         send_alert(
             "ERRORS DETECTED",
-            "The following errors were detected:\n\n" + "\n".join(f"- {e}" for e in errors),
+            "The following errors were detected:\n\n" + "\n".join(f"- {e}" for e in errors) + "\n" + feed_section,
             urgent=True
         )
 
@@ -239,7 +343,7 @@ def main():
         # Only send warning email if no hard errors (avoid double emails)
         send_alert(
             "Warnings",
-            "The following warnings were detected:\n\n" + "\n".join(f"- {w}" for w in warnings)
+            "The following warnings were detected:\n\n" + "\n".join(f"- {w}" for w in warnings) + "\n" + feed_section
         )
 
     overall = "error" if errors else ("warning" if warnings else "ok")
@@ -254,6 +358,7 @@ def main():
             "shopify":    shopify,
             "database":   db,
             "theme_drift": theme_drift,
+            "feed_health": feed_health,
         }
     }
 
