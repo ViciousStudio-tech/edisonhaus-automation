@@ -10,6 +10,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 import requests
 
+CJ_BASE = "https://developers.cjdropshipping.com/api2.0/v1"
+CJ_API_KEY = os.environ.get("CJ_API_KEY", "")
+
 # ── Config ────────────────────────────────────────────────────────────────
 SHOPIFY_BASE = "https://fgtyz6-bj.myshopify.com/admin/api/2024-01"
 SHOPIFY_TOKEN = os.environ.get("SHOPIFY_ACCESS_TOKEN", "")
@@ -38,7 +41,8 @@ def fetch_missing():
             break
         for p in r.json().get("products", []):
             html = (p.get("body_html") or "").strip()
-            if len(html) < 50:
+            text_only = re.sub(r'<[^>]+>', '', html).strip()
+            if len(text_only) < 50:
                 missing.append({"id": p["id"], "title": p["title"], "body_html": html})
         # Cursor pagination via Link header
         link = r.headers.get("Link", "")
@@ -49,8 +53,68 @@ def fetch_missing():
     log.info(f"Found {len(missing)} products missing descriptions (out of total fetched)")
     return missing
 
+# ── CJ API helpers ──────────────────────────────────────────────────────
+def get_cj_token():
+    if not CJ_API_KEY:
+        return None
+    try:
+        r = requests.post(f"{CJ_BASE}/authentication/getAccessToken",
+            json={"apiKey": CJ_API_KEY}, timeout=30)
+        if r.status_code == 200 and r.json().get("result"):
+            return r.json()["data"]
+    except Exception as e:
+        log.warning(f"CJ auth failed: {e}")
+    return None
+
+def fetch_cj_variant_id(product_id):
+    try:
+        r = requests.get(f"{SHOPIFY_BASE}/products/{product_id}/metafields.json",
+            headers=shop_h(), timeout=30)
+        if r.status_code == 200:
+            for mf in r.json().get("metafields", []):
+                if mf.get("namespace") == "dropship" and mf.get("key") == "cj_variant_id":
+                    return mf["value"]
+    except Exception as e:
+        log.warning(f"Metafield fetch failed for {product_id}: {e}")
+    return None
+
+def fetch_cj_description(cj_vid, cj_token):
+    if not cj_vid or not cj_token:
+        return None
+    try:
+        r = requests.get(f"{CJ_BASE}/product/query?pid={cj_vid}",
+            headers={"CJ-Access-Token": cj_token}, timeout=30)
+        if r.status_code == 200 and r.json().get("result"):
+            data = r.json().get("data", {})
+            desc = (data.get("description") or "").strip()
+            # Skip if Chinese-only or too short
+            if desc and len(desc) > 50 and not re.search(r'[\u4e00-\u9fff]', desc):
+                return desc
+    except Exception as e:
+        log.warning(f"CJ description fetch failed for {cj_vid}: {e}")
+    return None
+
 # ── Step 2: Generate description via Anthropic ───────────────────────────
-def generate_description(title):
+def generate_description(title, cj_description=None):
+    if cj_description:
+        system_prompt = (
+            "You are a product copywriter for EdisonHaus, a warm ambient home lighting "
+            "and decor store. Rewrite the following product information as a compelling product "
+            "description in English. Use only <p> and <ul><li> HTML tags. 80-120 words. Focus on "
+            "ambiance, style, and home decor appeal. Do not invent measurements or specs not "
+            "mentioned. Do not mention competitor brand names. Output ONLY the HTML, no preamble."
+        )
+        user_msg = f"Product: {title}\n\nSource description:\n{cj_description}"
+    else:
+        system_prompt = (
+            "You are a product copywriter for EdisonHaus, a warm ambient home lighting "
+            "and decor store. Write a compelling product description using only <p> and "
+            "<ul><li> HTML tags. No headers, no bold, no other tags. 80-120 words. Focus "
+            "on ambiance, style, and home decor appeal. Do not invent specific measurements "
+            "or specs. Do not mention other brand names."
+        )
+        user_msg = f"Write a product description for: {title}"
+
     r = requests.post("https://api.anthropic.com/v1/messages",
         headers={
             "x-api-key": ANTHROPIC_KEY,
@@ -60,14 +124,8 @@ def generate_description(title):
         json={
             "model": "claude-sonnet-4-20250514",
             "max_tokens": 400,
-            "system": (
-                "You are a product copywriter for EdisonHaus, a warm ambient home lighting "
-                "and decor store. Write a compelling product description using only <p> and "
-                "<ul><li> HTML tags. No headers, no bold, no other tags. 80-120 words. Focus "
-                "on ambiance, style, and home decor appeal. Do not invent specific measurements "
-                "or specs. Do not mention other brand names."
-            ),
-            "messages": [{"role": "user", "content": f"Write a product description for: {title}"}],
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": user_msg}],
         },
         timeout=30,
     )
@@ -118,11 +176,29 @@ def main():
     failed = 0
     updated_products = []
 
+    # Get CJ token once for all lookups
+    cj_token = get_cj_token()
+    if cj_token:
+        log.info("CJ API authenticated — will try CJ descriptions first")
+    else:
+        log.info("CJ API unavailable — will generate all descriptions via Claude")
+
     log.info(f"── Step 2-3: Generate and update {len(missing)} descriptions ──")
     for i, p in enumerate(missing):
         try:
             log.info(f"  [{i+1}/{len(missing)}] {p['title'][:60]}")
-            desc = generate_description(p["title"])
+
+            # Try CJ description first
+            cj_desc = None
+            if cj_token:
+                cj_vid = fetch_cj_variant_id(p["id"])
+                if cj_vid:
+                    cj_desc = fetch_cj_description(cj_vid, cj_token)
+                    if cj_desc:
+                        log.info(f"    Got CJ description ({len(cj_desc)} chars)")
+                    time.sleep(1)
+
+            desc = generate_description(p["title"], cj_description=cj_desc)
             time.sleep(1)
 
             ok, resp = update_body_html(p["id"], desc)

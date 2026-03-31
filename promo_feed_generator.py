@@ -49,18 +49,18 @@ def google_category(product_type, title=""):
     t = (title or "").lower()
     combined = pt + " " + t
     if any(w in combined for w in ["pendant", "ceiling", "chandelier"]):
-        return "4492"
-    if any(w in combined for w in ["led", "strip", "fairy", "string"]):
-        return "2636"
-    if any(w in combined for w in ["lamp", "lamps"]):
-        return "2706"
-    if any(w in combined for w in ["wall", "tapestry", "canvas", "art"]):
-        return "500044"
-    if any(w in combined for w in ["pillow", "cushion", "textile", "blanket"]):
-        return "505821"
+        return "Home & Garden > Lighting > Ceiling Fixtures"
+    if any(w in combined for w in ["led", "strip", "fairy", "string light", "neon"]):
+        return "Home & Garden > Lighting > Night Lights"
+    if any(w in combined for w in ["lamp", "desk lamp", "table lamp", "floor lamp"]):
+        return "Home & Garden > Lighting > Lamps"
+    if any(w in combined for w in ["wall", "tapestry", "canvas", "art", "painting"]):
+        return "Home & Garden > Decor > Wall Decor"
+    if any(w in combined for w in ["pillow", "cushion", "textile", "blanket", "throw"]):
+        return "Home & Garden > Linens & Bedding > Throw Pillows"
     if any(w in combined for w in ["storage", "basket", "vase", "candle", "accent"]):
-        return "6869"
-    return "2706"
+        return "Home & Garden > Decor > Decorative Accents"
+    return "Home & Garden > Lighting"
 
 # ── Step 1: Fetch all products ────────────────────────────────────────────
 def fetch_products():
@@ -101,8 +101,8 @@ def generate_google_feed(products):
 
         title = p.get("title", "")
         desc = strip_html(p.get("body_html", ""))
-        if len(desc) < 20:
-            desc = f"Shop {title} at EdisonHaus. Premium warm ambient home lighting and decor for cozy living spaces. Free shipping on orders over 50 dollars."
+        if len(desc) < 30:
+            desc = f"Shop {title} at EdisonHaus. Premium home lighting and decor for warm, cozy spaces."
 
         item = SubElement(channel, "item")
         SubElement(item, f"{{{NS}}}id").text = str(p["id"])
@@ -137,8 +137,8 @@ def generate_meta_feed(products):
         img = images[0]["src"] if images else ""
         title = p.get("title", "")
         desc = strip_html(p.get("body_html", ""))
-        if len(desc) < 20:
-            desc = f"Shop {title} at EdisonHaus. Premium warm ambient home lighting and decor for cozy living spaces. Free shipping on orders over $50."
+        if len(desc) < 30:
+            desc = f"Shop {title} at EdisonHaus. Premium home lighting and decor for warm, cozy spaces."
         gpc = google_category(p.get("product_type", ""), title)
         for v in p.get("variants", []):
             rows.append({
@@ -183,8 +183,8 @@ def generate_pinterest_feed(products):
 
         title = p.get("title", "")
         desc = strip_html(p.get("body_html", ""))
-        if len(desc) < 20:
-            desc = f"Shop {title} at EdisonHaus. Premium warm ambient home lighting and decor for cozy living spaces. Free shipping on orders over $50."
+        if len(desc) < 30:
+            desc = f"Shop {title} at EdisonHaus. Premium home lighting and decor for warm, cozy spaces."
 
         gpc = google_category(p.get("product_type", ""), title)
 
