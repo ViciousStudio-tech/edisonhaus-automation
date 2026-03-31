@@ -1,26 +1,28 @@
 {
-  "generated_at": "2026-03-31T19:50:46.867436",
-  "overall_status": "ok",
-  "errors": [],
+  "generated_at": "2026-03-31T21:31:48.504472",
+  "overall_status": "error",
+  "errors": [
+    "Feed health: 232 non-numeric google_product_category"
+  ],
   "warnings": [],
   "modules": {
     "heartbeats": {
       "product_finder": {
         "status": "ok",
         "last_run": "2026-03-30T08:18:26.229319",
-        "age_hours": 35.5,
+        "age_hours": 37.2,
         "details": "success"
       },
       "store_manager": {
         "status": "ok",
         "last_run": "2026-03-31T08:47:07.961100",
-        "age_hours": 11.1,
+        "age_hours": 12.7,
         "details": "success"
       },
       "order_fulfiller": {
         "status": "ok",
         "last_run": "2026-03-31T17:04:54.092096",
-        "age_hours": 2.8,
+        "age_hours": 4.4,
         "details": "success"
       }
     },
@@ -41,11 +43,11 @@
       "removed": 0
     },
     "feed_health": {
-      "status": "ok",
+      "status": "error",
       "total_items": 232,
       "ns0_count": 0,
       "empty_descriptions": 0,
-      "bad_gpc": 0
+      "bad_gpc": 232
     }
   }
 }
