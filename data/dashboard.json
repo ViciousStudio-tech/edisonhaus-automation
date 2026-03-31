@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-03-31T14:27:07.165316",
+  "generated_at": "2026-03-31T15:45:10.219530",
   "overall_status": "ok",
   "errors": [],
   "warnings": [],
@@ -8,19 +8,19 @@
       "product_finder": {
         "status": "ok",
         "last_run": "2026-03-30T08:18:26.229319",
-        "age_hours": 30.1,
+        "age_hours": 31.4,
         "details": "success"
       },
       "store_manager": {
         "status": "ok",
         "last_run": "2026-03-31T08:47:07.961100",
-        "age_hours": 5.7,
+        "age_hours": 7.0,
         "details": "success"
       },
       "order_fulfiller": {
         "status": "ok",
         "last_run": "2026-03-31T13:46:16.142660",
-        "age_hours": 0.7,
+        "age_hours": 2.0,
         "details": "success"
       }
     },
@@ -39,6 +39,13 @@
       "status": "no_anthropic",
       "checked": 0,
       "removed": 0
+    },
+    "feed_health": {
+      "status": "ok",
+      "total_items": 232,
+      "ns0_count": 0,
+      "empty_descriptions": 0,
+      "bad_gpc": 0
     }
   }
 }
