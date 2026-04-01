@@ -1,12 +1,12 @@
 # Todo
 
 ## 2026-03-31 — Fix EdisonHaus Description Pipeline ✅
+## 2026-03-31 — Create Product Health Check ✅
+## 2026-04-01 — Fix CJ Rate Limit in Product Health ✅
+## 2026-04-01 — Meta Product Catalog Setup ✅
 
-## 2026-03-31 — Create Product Health Check
+## Open Items
 
-- [ ] 1. Create b3_product_health.py (CJ stock/price/status check)
-- [ ] 2. Create .github/workflows/b3_product_health.yml (daily 12:00 UTC)
-- [ ] 3. Add health heartbeat to daily digest in b3_gmail_watcher.py
-- [ ] 4. Commit and push all files
-- [ ] 5. Trigger workflow via GitHub Actions API
-- [ ] 6. Verify workflow started, report run ID
+- [ ] Verify Meta catalog upload completed (catalog ID: 1576514153432001)
+- [ ] Add Google Merchant Center return policy
+- [ ] Monitor Pinterest catalog sync (morning of April 2)
