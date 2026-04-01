@@ -16,6 +16,7 @@ SHOPIFY_TOKEN = os.environ.get("SHOPIFY_ACCESS_TOKEN", "")
 CJ_API_KEY = os.environ.get("CJ_API_KEY", "")
 CJ_BASE = "https://developers.cjdropshipping.com/api2.0/v1"
 HB_PATH = Path("data/product_health_heartbeat.json")
+MAX_PRODUCTS_PER_RUN = 150
 
 Path("data").mkdir(parents=True, exist_ok=True)
 Path("reports").mkdir(parents=True, exist_ok=True)
@@ -87,6 +88,13 @@ def fetch_shopify_products():
             log.warning(f"Metafield fetch error for {p['id']}: {e}")
 
     log.info(f"Found {len(cj_products)} products with CJ variant IDs")
+
+    # Cap per run — sort by Shopify product ID (oldest first) so we rotate through
+    if len(cj_products) > MAX_PRODUCTS_PER_RUN:
+        cj_products.sort(key=lambda p: p["id"])
+        log.info(f"Capping to {MAX_PRODUCTS_PER_RUN} products this run ({len(cj_products) - MAX_PRODUCTS_PER_RUN} deferred to next run)")
+        cj_products = cj_products[:MAX_PRODUCTS_PER_RUN]
+
     return cj_products
 
 # ── Step 2: CJ authentication ────────────────────────────────────────────
@@ -103,21 +111,29 @@ def get_cj_token():
 # ── Step 3: Check CJ product status ──────────────────────────────────────
 def check_cj_variant(cj_vid, cj_token):
     """Returns dict with status info or None on error."""
-    try:
-        r = requests.get(f"{CJ_BASE}/product/variant/query?vid={cj_vid}",
-            headers={"CJ-Access-Token": cj_token}, timeout=15)
-        if r.status_code == 429:
-            log.warning("CJ rate limit hit — backing off 30s")
-            time.sleep(30)
-            r = requests.get(f"{CJ_BASE}/product/variant/query?vid={cj_vid}",
-                headers={"CJ-Access-Token": cj_token}, timeout=15)
-        data = r.json()
-        if data.get("result") is True and data.get("data"):
-            return data["data"]
-        return None
-    except Exception as e:
-        log.warning(f"CJ variant query failed for {cj_vid}: {e}")
-        return None
+    url = f"{CJ_BASE}/product/variant/query?vid={cj_vid}"
+    headers = {"CJ-Access-Token": cj_token}
+    for attempt in range(3):
+        try:
+            r = requests.get(url, headers=headers, timeout=15)
+            if r.status_code == 429:
+                log.warning(f"CJ rate limit (429) on attempt {attempt+1} for {cj_vid} — backing off 60s")
+                time.sleep(60)
+                continue
+            if r.status_code != 200:
+                log.warning(f"CJ non-200 for {cj_vid}: status={r.status_code} body={r.text[:300]}")
+                return None
+            data = r.json()
+            if data.get("result") is True and data.get("data"):
+                return data["data"]
+            log.warning(f"CJ returned result=false for {cj_vid}: {data.get('message', 'no message')}")
+            return None
+        except Exception as e:
+            log.warning(f"CJ variant query exception for {cj_vid} attempt {attempt+1}: {e}")
+            if attempt < 2:
+                time.sleep(10)
+    log.error(f"CJ variant query failed after 3 attempts for {cj_vid}")
+    return None
 
 # ── Step 4: Update Shopify ────────────────────────────────────────────────
 def draft_product(product_id):
@@ -145,8 +161,8 @@ def main():
     if not CJ_API_KEY:
         log.error("Missing CJ_API_KEY"); sys.exit(1)
 
-    products = fetch_shopify_products()
-    if not products:
+    all_cj_products = fetch_shopify_products()
+    if not all_cj_products:
         log.info("No CJ-sourced products found.")
         HB_PATH.write_text(json.dumps({
             "module": "product_health", "last_run": datetime.now(timezone.utc).isoformat(),
@@ -155,6 +171,7 @@ def main():
         }, indent=2))
         return
 
+    products = all_cj_products  # already capped in fetch_shopify_products
     cj_token = get_cj_token()
 
     ok = 0
@@ -175,7 +192,7 @@ def main():
         log.info(f"  [{i+1}/{len(products)}] {title}")
 
         cj_data = check_cj_variant(cj_vid, cj_token)
-        time.sleep(0.3)
+        time.sleep(1.5)
 
         if cj_data is None:
             errors += 1
