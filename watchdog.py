@@ -245,14 +245,12 @@ def check_feed_health() -> dict:
             if desc is not None and (desc.text is None or desc.text.strip() == ""):
                 empty_descriptions += 1
 
-            # Check google_product_category is numeric
+            # Check google_product_category is non-empty (numeric IDs and taxonomy strings both valid)
             gpc = item.find(f"{{{g_ns}}}google_product_category")
             if gpc is None:
                 gpc = item.find("g:google_product_category", {"g": g_ns})
-            if gpc is not None and gpc.text:
-                text = gpc.text.strip()
-                if text and not text.isdigit():
-                    bad_gpc += 1
+            if gpc is not None and (gpc.text is None or gpc.text.strip() == ""):
+                bad_gpc += 1
 
         has_issues = ns0_count > 0 or empty_descriptions > 0 or bad_gpc > 0
         status = "error" if has_issues else "ok"
@@ -314,7 +312,7 @@ def main():
         if feed_health["empty_descriptions"] > 0:
             feed_issues.append(f"{feed_health['empty_descriptions']} empty descriptions")
         if feed_health["bad_gpc"] > 0:
-            feed_issues.append(f"{feed_health['bad_gpc']} non-numeric google_product_category")
+            feed_issues.append(f"{feed_health['bad_gpc']} empty google_product_category")
         errors.append(f"Feed health: {'; '.join(feed_issues)}")
 
     # Build feed health section for emails
@@ -327,7 +325,7 @@ def main():
         if feed_health["empty_descriptions"] > 0:
             feed_section += f"🚨 Empty g:description tags: {feed_health['empty_descriptions']}\n"
         if feed_health["bad_gpc"] > 0:
-            feed_section += f"🚨 Non-numeric google_product_category: {feed_health['bad_gpc']}\n"
+            feed_section += f"🚨 Empty google_product_category: {feed_health['bad_gpc']}\n"
     else:
         feed_section += "All checks passed.\n"
 
