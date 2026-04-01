@@ -1,35 +1,27 @@
 {
   "module": "b3_title_cleaner",
-  "last_run": "2026-03-25T06:40:53.512058+00:00",
+  "last_run": "2026-04-01T07:00:11.896097+00:00",
   "products_checked": 233,
-  "products_needing_cleanup": 9,
-  "products_updated": 9,
+  "products_needing_cleanup": 7,
+  "products_updated": 7,
   "products_failed": 0,
   "status": "success",
   "sample_rewrites": [
     {
-      "old": "Instagram-Style Landscape Tapestry Wall Hanging",
-      "new": "Landscape Tapestry Wall Hanging"
+      "old": "Japanese Wabi-Sabi Dining Table Chandelier",
+      "new": "Japanese Wabi-Sabi Dining Room Chandelier"
     },
     {
       "old": "Japanese Wabi-Sabi Fabric Chandelier",
       "new": "Japanese Wabi-Sabi Fabric Chandelier"
     },
     {
-      "old": "Japanese Wabi-Sabi Style Chandelier for Dining Tables",
-      "new": "Japanese Wabi-Sabi Dining Table Chandelier"
+      "old": "Light Luxury Bedroom And Study Chandelier",
+      "new": "Luxury Bedroom and Study Chandelier"
     },
     {
-      "old": "Light Luxury Bedroom and Study Chandelier",
-      "new": "Light Luxury Bedroom And Study Chandelier"
-    },
-    {
-      "old": "Light Luxury Cylinder Bedside Chandelier",
-      "new": "Light Luxury Cylindrical Bedside Chandelier"
-    },
-    {
-      "old": "Modern Minimalist Nordic Chandelier with Light Luxury Design",
-      "new": "Modern Nordic Chandelier with Luxe Design"
+      "old": "Light Luxury Cylindrical Bedside Chandelier",
+      "new": "Luxurious Cylindrical Bedside Chandelier"
     },
     {
       "old": "Rustic Wabi-Sabi Inspired Chandelier",
@@ -40,7 +32,7 @@
       "new": "Vintage Hemp Rope Pendant Light"
     },
     {
-      "old": "Wabi Sabi Chandelier for Dining Room and Living Spaces",
+      "old": "Wabi Sabi Chandelier for Dining and Living Rooms",
       "new": "Wabi Sabi Chandelier for Dining and Living Rooms"
     }
   ]
