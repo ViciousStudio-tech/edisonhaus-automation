@@ -9,3 +9,8 @@ RULE: Always strip HTML tags before checking if a description field has real tex
 MISTAKE: b3_product_health.py used 0.3s sleep between CJ calls and only 30s backoff on 429. All 176 products errored out.
 ROOT CAUSE: CJ API rate limits aggressively on bulk variant queries — 0.3s is too fast and 30s backoff insufficient for recovery.
 RULE: Use 1.5s sleep between CJ API calls and 60s backoff on 429 with 3 retries. Cap bulk CJ queries to 150 per run to avoid hitting daily limits.
+
+## 2026-04-01 — Meta catalog requires catalog_management permission
+MISTAKE: First two token attempts failed — ads_management and business_management alone are NOT enough to create catalogs.
+ROOT CAUSE: The `owned_product_catalogs` POST endpoint requires the `catalog_management` scope specifically. Must be added in Graph API Explorer before generating the token.
+RULE: Meta catalog creation requires `catalog_management` permission. EdisonHaus Catalog app ID: 981305987795652. Business ID: 335075399074526. Feed upload endpoint requires explicit `url` param. Token saved as META_ACCESS_TOKEN in GitHub Secrets.
