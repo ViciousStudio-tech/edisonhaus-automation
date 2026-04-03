@@ -1,8 +1,8 @@
 {
   "module": "description_writer",
-  "last_run": "2026-04-01T13:35:05.102989+00:00",
-  "products_found_missing": 5,
-  "products_updated": 5,
+  "last_run": "2026-04-03T10:33:54.333052+00:00",
+  "products_found_missing": 0,
+  "products_updated": 0,
   "products_failed": 0,
   "status": "success"
 }
