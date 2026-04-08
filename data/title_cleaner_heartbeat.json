@@ -1,14 +1,14 @@
 {
   "module": "b3_title_cleaner",
-  "last_run": "2026-04-01T07:00:11.896097+00:00",
+  "last_run": "2026-04-08T06:54:57.467940+00:00",
   "products_checked": 233,
-  "products_needing_cleanup": 7,
-  "products_updated": 7,
+  "products_needing_cleanup": 5,
+  "products_updated": 5,
   "products_failed": 0,
   "status": "success",
   "sample_rewrites": [
     {
-      "old": "Japanese Wabi-Sabi Dining Table Chandelier",
+      "old": "Japanese Wabi-Sabi Dining Room Chandelier",
       "new": "Japanese Wabi-Sabi Dining Room Chandelier"
     },
     {
@@ -16,16 +16,8 @@
       "new": "Japanese Wabi-Sabi Fabric Chandelier"
     },
     {
-      "old": "Light Luxury Bedroom And Study Chandelier",
-      "new": "Luxury Bedroom and Study Chandelier"
-    },
-    {
-      "old": "Light Luxury Cylindrical Bedside Chandelier",
-      "new": "Luxurious Cylindrical Bedside Chandelier"
-    },
-    {
       "old": "Rustic Wabi-Sabi Inspired Chandelier",
-      "new": "Rustic Wabi-Sabi Inspired Chandelier"
+      "new": "Rustic Wabi-Sabi Chandelier"
     },
     {
       "old": "Vintage Hemp Rope Pendant Light",
