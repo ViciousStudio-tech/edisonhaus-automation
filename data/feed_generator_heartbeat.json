@@ -1,6 +1,6 @@
 {
   "module": "promo_feed_generator",
-  "last_run": "2026-04-08T05:45:29.199933+00:00",
+  "last_run": "2026-04-09T05:47:16.348482+00:00",
   "products_in_feed": 232,
   "google_feed_url": "https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/google_feed.xml",
   "meta_feed_url": "https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/meta_feed.csv",
