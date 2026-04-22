@@ -19,3 +19,13 @@ RULE: Meta catalog creation requires `catalog_management` permission. EdisonHaus
 MISTAKE: Watchdog flagged non-numeric google_product_category as errors after we intentionally switched from numeric IDs to full taxonomy strings for Pinterest compliance.
 ROOT CAUSE: Validation logic used `text.isdigit()` instead of just checking non-empty. Both numeric IDs and taxonomy strings are valid GPC values.
 RULE: GPC field can be either numeric ID or full taxonomy string — both are valid. Only validate that the field is non-empty.
+
+## 2026-04-22 — Never restate status from memory without live verification
+MISTAKE: Pinterest Ads were reported as "not launched" for a full session because memory had a stale claim. Actual state: 1 active campaign, $62.95 spent, 87 clicks in 30 days.
+ROOT CAUSE: Relied on memory/docs instead of checking the live dashboard or API. Prior docs had wrong Pinterest account email too (nicholas.jacksondesign@gmail.com instead of home@edisonhaus.com).
+RULE: For any status claim about an external platform (Pinterest, Google, Meta, Shopify), check the live dashboard or API first, then write. Never trust memory or previous session output for external platform state.
+
+## 2026-04-22 — GitHub Actions green check does NOT mean job succeeded
+MISTAKE: b3_product_health.py reported status=partial with 150/150 errors under a green GitHub Actions workflow run. Pipeline appeared healthy but was silently failing every run.
+ROOT CAUSE: Workflow exits 0 regardless of heartbeat status. The script writes a heartbeat with status="partial" but does not raise a non-zero exit code.
+RULE: Workflows must exit non-zero when heartbeat status != "success" or error_count > threshold. A green check must mean the job actually succeeded, not just that it ran without crashing.

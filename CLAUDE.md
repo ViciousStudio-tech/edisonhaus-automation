@@ -1,7 +1,7 @@
 # VICIOUS STUDIO — CLAUDE CODE OPERATING RULES
 # Place this file at: repo root as CLAUDE.md
 # Applies to: All ViciousStudio-tech repos (edisonhaus-automation, amazon-associates-content-site)
-# Last Updated: March 31, 2026
+# Last Updated: April 22, 2026
 
 ---
 
@@ -155,8 +155,9 @@ b3_daily_digest.py         → 9am + 6pm EST       (email status report)
 
 Feed URLs (must stay live):
 ```
-Google: https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/google_feed.xml
-Meta:   https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/meta_feed.csv
+Google:    https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/google_feed.xml
+Meta:      https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/meta_feed.csv
+Pinterest: https://viciousstudio-tech.github.io/edisonhaus-automation/feeds/pinterest_feed.xml
 ```
 
 Pricing formula (NEVER modify without explicit instruction):
@@ -213,6 +214,36 @@ LESSONS ADDED:   [any new rules added to tasks/lessons.md]
 ## PRODUCT IMAGE RULE
 Product images must come from actual Amazon product listing pages.
 NEVER use stock photos or AI-generated images for product listings.
+
+---
+
+## PINTEREST — CORRECTED FACTS (April 22, 2026)
+- Pinterest Business account: **home@edisonhaus.com** (NOT nicholas.jacksondesign@gmail.com)
+- Merchant status: Approved, EQS: Good
+- Catalog: 232 products ingested, last sync 2026-04-21
+- Ads: 1 active Catalog Sales campaign, $10/day budget
+- 30-day performance: $62.95 spent / 7.19k impressions / 87 clicks
+- Pinterest is LIVE and spending — never describe as "not launched" or "pending activation"
+
+## CONVERSION FUNNEL — CURRENT STATE (April 22, 2026)
+```
+Pinterest Ads:  87 clicks → 0 add-to-cart → 0 checkouts → 0 orders (all-time)
+Google PMax:    Active $5/day — 0 orders
+Shopify total:  234 products, 0 orders ever
+```
+The real blocker is NOT traffic — it is product-page conversion.
+Root-cause candidates (priority order):
+1. No Shop Pay / Apple Pay enabled
+2. Zero product reviews
+3. No delivery estimate shown on product page
+4. Generic CJ supplier photos and titles
+
+## SILENT FAILURE ALERT — PIPELINE HEALTH
+- b3_product_health.py: heartbeat shows 150 checked / 0 ok / 150 errors / status=partial
+  BUT GitHub Actions workflow reports success. Green check ≠ job success.
+- b3_product_pipeline.py: 255 fetched / 0 created / 30 create_fail errors / status=partial
+  Shopify write path is broken — no new products being created.
+Rule: workflows MUST exit non-zero when heartbeat status != "success" or error_count > threshold.
 
 ---
 
